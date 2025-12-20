@@ -159,6 +159,11 @@ export default function DashboardLayout({
       icon: LayoutDashboard,
     },
     {
+      name: 'Financial Overview',
+      href: `/${orgSlug}/dashboard/financial`,
+      icon: TrendingUp,
+    },
+    {
       name: 'General Ledger',
       icon: BookOpen,
       children: [
@@ -521,8 +526,8 @@ export default function DashboardLayout({
           )}
         </nav>
 
-        {/* User Menu */}
-        <div className="border-t border-slate-700 p-4">
+        {/* Logout Button - Fixed at Bottom */}
+        <div className="mt-auto border-t border-slate-700 p-4">
           <button
             onClick={handleLogout}
             className="flex items-center w-full px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded-md transition"
@@ -530,27 +535,6 @@ export default function DashboardLayout({
             <LogOut className="h-5 w-5 mr-3 text-slate-400" />
             Logout
           </button>
-        </div>
-        {/* Recent Activity Feed */}
-        <div className="border-t border-slate-700 p-4 bg-slate-900">
-          <div className="text-xs font-semibold text-slate-400 mb-2">Recent Activity</div>
-          <ul className="space-y-2">
-            <li className="flex items-center gap-2 text-slate-300 text-xs">
-              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-              Invoice INV-2025-0012 created
-              <span className="ml-auto text-slate-500">2m ago</span>
-            </li>
-            <li className="flex items-center gap-2 text-slate-300 text-xs">
-              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-              Payment received from Acme Corp
-              <span className="ml-auto text-slate-500">10m ago</span>
-            </li>
-            <li className="flex items-center gap-2 text-slate-300 text-xs">
-              <span className="w-2 h-2 bg-yellow-400 rounded-full"></span>
-              User John Doe invited
-              <span className="ml-auto text-slate-500">1h ago</span>
-            </li>
-          </ul>
         </div>
       </aside>
 
@@ -618,7 +602,6 @@ export default function DashboardLayout({
           <div className="flex items-center space-x-6 w-full justify-between">
             <div className="flex items-center gap-4">
               <span className="text-lg font-bold text-white hidden md:inline-block">{organization?.name}</span>
-              <span className="text-sm text-blue-200 ml-4 hidden md:inline-block">{getGreeting()}, {user?.firstName || 'User'}!</span>
               {/* Global Search Bar */}
               <div className="relative">
                 <input
@@ -691,7 +674,7 @@ export default function DashboardLayout({
         </header>
 
         {/* Main Content */}
-        <main className="lg:ml-56 min-h-[calc(100vh-4rem)]">
+        <main className="lg:ml-56 min-h-[calc(100vh-4rem)] p-6 max-w-[1600px] mx-auto">
           {children}
         </main>
 

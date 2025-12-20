@@ -167,3 +167,66 @@ export async function requirePermission(
     permissions,
   };
 }
+
+// Verify authentication from request (for API routes)
+export async function verifyAuth(request: NextRequest): Promise<{
+  valid: boolean;
+  userId?: string;
+  organizationId?: string;
+  role?: UserRole;
+  error?: string;
+}> {
+  try {
+    // Get token from cookies
+    const token = request.cookies.get('auth-token')?.value;
+    
+    console.log('[verifyAuth] Token exists:', !!token);
+    
+    if (!token) {
+      return { valid: false, error: 'No auth token' };
+    }
+
+    // Verify token
+    const session = await verifyToken(token);
+    
+    console.log('[verifyAuth] Session:', session ? { userId: session.userId, email: session.email } : 'null');
+    
+    if (!session || !session.userId) {
+      return { valid: false, error: 'Invalid token' };
+    }
+
+    // Get user with organization membership
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      include: {
+        organizations: {
+          where: { isActive: true },
+          include: {
+            organization: true,
+          },
+          take: 1,
+        },
+      },
+    });
+
+    console.log('[verifyAuth] User found:', !!user, 'Org memberships:', user?.organizations.length || 0);
+
+    if (!user || !user.organizations.length) {
+      return { valid: false, error: 'No active organization' };
+    }
+
+    const membership = user.organizations[0];
+
+    console.log('[verifyAuth] Success - orgId:', membership.organizationId, 'role:', membership.role);
+
+    return {
+      valid: true,
+      userId: user.id,
+      organizationId: membership.organizationId,
+      role: membership.role,
+    };
+  } catch (error) {
+    console.error('[verifyAuth] Error:', error);
+    return { valid: false, error: 'Authentication failed' };
+  }
+}
