@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import Loading from '@/components/ui/loading';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/utils';
 
 interface Bill {
   id: string;
@@ -50,6 +52,7 @@ export default function VendorDetailsPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
   const vendorId = params.id as string;
+  const { currency } = useOrganization();
 
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [loading, setLoading] = useState(true);
@@ -151,7 +154,7 @@ export default function VendorDetailsPage() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-red-600">
-              ${vendor.totalOwed.toFixed(2)}
+              {formatCurrency(vendor.totalOwed, currency)}
             </p>
             <p className="text-xs text-gray-500">unpaid bills</p>
           </CardContent>
@@ -165,7 +168,7 @@ export default function VendorDetailsPage() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-green-600">
-              ${vendor.totalPaid.toFixed(2)}
+              {formatCurrency(vendor.totalPaid, currency)}
             </p>
             <p className="text-xs text-gray-500">paid bills</p>
           </CardContent>
@@ -191,7 +194,7 @@ export default function VendorDetailsPage() {
           </CardHeader>
           <CardContent>
             <p className="text-xl font-semibold">
-              {vendor.paymentTerms.replace('_', ' ')}
+              {vendor.paymentTerms} days
             </p>
             <p className="text-xs text-gray-500">standard terms</p>
           </CardContent>
@@ -327,7 +330,7 @@ export default function VendorDetailsPage() {
                         {new Date(bill.dueDate).toLocaleDateString()}
                       </td>
                       <td className="py-3 text-right font-medium">
-                        ${bill.totalAmount.toFixed(2)}
+                        {formatCurrency(bill.totalAmount, currency)}
                       </td>
                       <td className="py-3">
                         <span

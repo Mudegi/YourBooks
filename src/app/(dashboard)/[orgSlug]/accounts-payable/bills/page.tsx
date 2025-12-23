@@ -3,11 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Alert } from '@/components/ui/alert';
 import Loading from '@/components/ui/loading';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/utils';
 
 interface Vendor {
   id: string;
@@ -50,6 +53,7 @@ export default function BillsPage() {
   const searchParams = useSearchParams();
   const orgSlug = params.orgSlug as string;
   const vendorIdFilter = searchParams.get('vendorId');
+  const { currency } = useOrganization();
 
   const [bills, setBills] = useState<Bill[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -118,13 +122,21 @@ export default function BillsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loading size="lg" />
+        <Loading />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      {/* Back link */}
+      <Link
+        href={`/${orgSlug}/accounts-payable`}
+        className="inline-flex items-center text-blue-600 hover:text-blue-700 text-sm font-medium"
+      >
+        <ArrowLeft className="w-4 h-4 mr-1" />
+        Back to Accounts Payable
+      </Link>
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Bills</h1>
         <Link href={`/${orgSlug}/accounts-payable/bills/new`}>
@@ -145,7 +157,7 @@ export default function BillsPage() {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold text-red-600">
-                ${stats.outstandingAmount.toFixed(2)}
+                {formatCurrency(stats.outstandingAmount, currency)}
               </p>
               <p className="text-xs text-gray-500">
                 {stats.outstanding} bill{stats.outstanding !== 1 ? 's' : ''}
@@ -160,7 +172,7 @@ export default function BillsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">${stats.totalAmount.toFixed(2)}</p>
+              <p className="text-2xl font-bold">{formatCurrency(stats.totalAmount, currency)}</p>
               <p className="text-xs text-gray-500">
                 {stats.total} bill{stats.total !== 1 ? 's' : ''}
               </p>
@@ -173,7 +185,7 @@ export default function BillsPage() {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold text-green-600">
-                ${stats.paidAmount.toFixed(2)}
+                {formatCurrency(stats.paidAmount, currency)}
               </p>
               <p className="text-xs text-gray-500">
                 {stats.paid} bill{stats.paid !== 1 ? 's' : ''}
@@ -189,7 +201,7 @@ export default function BillsPage() {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold text-red-700">
-                ${stats.overdueAmount.toFixed(2)}
+                {formatCurrency(stats.overdueAmount, currency)}
               </p>
               <p className="text-xs text-gray-500">
                 {stats.overdue} bill{stats.overdue !== 1 ? 's' : ''}
@@ -288,7 +300,7 @@ export default function BillsPage() {
                         </div>
                       </td>
                       <td className="py-3 text-right font-medium">
-                        ${bill.totalAmount.toFixed(2)}
+                        {formatCurrency(bill.totalAmount, currency)}
                       </td>
                       <td className="py-3">
                         <span

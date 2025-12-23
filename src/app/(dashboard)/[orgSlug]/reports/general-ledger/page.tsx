@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/currency';
 import Link from 'next/link';
+import { useOnboardingGuard } from '@/hooks/useOnboardingGuard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -47,8 +50,12 @@ interface GLReportData {
 }
 
 export default function GeneralLedgerPage() {
+  // Onboarding guard - redirects if setup incomplete
+  const onboardingCheck = useOnboardingGuard();
+  
   const params = useParams();
   const orgSlug = params.orgSlug as string;
+  const { currency } = useOrganization();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
@@ -258,25 +265,25 @@ export default function GeneralLedgerPage() {
                 <div className="text-center p-3 bg-blue-50 rounded">
                   <p className="text-xs text-gray-600">Opening Balance</p>
                   <p className="text-lg font-bold text-blue-600">
-                    ${reportData.summary.openingBalance.toFixed(2)}
+                    {formatCurrency(reportData.summary.openingBalance, currency)}
                   </p>
                 </div>
                 <div className="text-center p-3 bg-green-50 rounded">
                   <p className="text-xs text-gray-600">Total Debits</p>
                   <p className="text-lg font-bold text-green-600">
-                    ${reportData.summary.totalDebits.toFixed(2)}
+                    {formatCurrency(reportData.summary.totalDebits, currency)}
                   </p>
                 </div>
                 <div className="text-center p-3 bg-red-50 rounded">
                   <p className="text-xs text-gray-600">Total Credits</p>
                   <p className="text-lg font-bold text-red-600">
-                    ${reportData.summary.totalCredits.toFixed(2)}
+                    {formatCurrency(reportData.summary.totalCredits, currency)}
                   </p>
                 </div>
                 <div className="text-center p-3 bg-purple-50 rounded">
                   <p className="text-xs text-gray-600">Closing Balance</p>
                   <p className="text-lg font-bold text-purple-600">
-                    ${reportData.summary.closingBalance.toFixed(2)}
+                    {formatCurrency(reportData.summary.closingBalance, currency)}
                   </p>
                 </div>
                 <div className="text-center p-3 bg-gray-50 rounded">
@@ -311,7 +318,7 @@ export default function GeneralLedgerPage() {
                           <td className="py-2 px-2 text-right"></td>
                           <td className="py-2 px-2 text-right"></td>
                           <td className="py-2 px-2 text-right font-semibold">
-                            ${reportData.summary.openingBalance.toFixed(2)}
+                            {formatCurrency(reportData.summary.openingBalance, currency)}
                           </td>
                         </tr>
                       )}
@@ -339,7 +346,7 @@ export default function GeneralLedgerPage() {
                           <td className="py-2 px-2 text-right">
                             {entry.entryType === 'DEBIT' ? (
                               <span className="text-green-600 font-medium">
-                                ${entry.amount.toFixed(2)}
+                                {formatCurrency(entry.amount, currency)}
                               </span>
                             ) : (
                               <span className="text-gray-400">-</span>
@@ -348,14 +355,14 @@ export default function GeneralLedgerPage() {
                           <td className="py-2 px-2 text-right">
                             {entry.entryType === 'CREDIT' ? (
                               <span className="text-red-600 font-medium">
-                                ${entry.amount.toFixed(2)}
+                                {formatCurrency(entry.amount, currency)}
                               </span>
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
                           </td>
                           <td className="py-2 px-2 text-right font-medium">
-                            ${entry.runningBalance.toFixed(2)}
+                            {formatCurrency(entry.runningBalance, currency)}
                           </td>
                         </tr>
                       ))}
@@ -364,13 +371,13 @@ export default function GeneralLedgerPage() {
                           Closing Balance
                         </td>
                         <td className="py-3 px-2 text-right text-green-600">
-                          ${reportData.summary.totalDebits.toFixed(2)}
+                          {formatCurrency(reportData.summary.totalDebits, currency)}
                         </td>
                         <td className="py-3 px-2 text-right text-red-600">
-                          ${reportData.summary.totalCredits.toFixed(2)}
+                          {formatCurrency(reportData.summary.totalCredits, currency)}
                         </td>
                         <td className="py-3 px-2 text-right text-purple-600">
-                          ${reportData.summary.closingBalance.toFixed(2)}
+                          {formatCurrency(reportData.summary.closingBalance, currency)}
                         </td>
                       </tr>
                     </tbody>

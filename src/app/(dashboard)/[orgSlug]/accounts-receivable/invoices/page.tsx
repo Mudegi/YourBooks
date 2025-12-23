@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Search, Eye, Trash2, Mail, DollarSign, Calendar } from 'lucide-react';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/utils';
 
 interface Invoice {
   id: string;
@@ -26,6 +28,7 @@ interface Invoice {
 export default function InvoicesPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
+  const { currency } = useOrganization();
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,7 +160,7 @@ export default function InvoicesPage() {
             <DollarSign className="h-5 w-5 text-orange-500" />
           </div>
           <div className="text-2xl font-bold text-gray-900">
-            ${stats.outstanding.toLocaleString()}
+            {formatCurrency(stats.outstanding, currency)}
           </div>
           <div className="text-xs text-gray-500 mt-1">
             {stats.sent + stats.overdue} unpaid invoices
@@ -170,7 +173,7 @@ export default function InvoicesPage() {
             <DollarSign className="h-5 w-5 text-blue-500" />
           </div>
           <div className="text-2xl font-bold text-gray-900">
-            ${stats.totalAmount.toLocaleString()}
+            {formatCurrency(stats.totalAmount, currency)}
           </div>
           <div className="text-xs text-gray-500 mt-1">{stats.total} total invoices</div>
         </div>
@@ -305,7 +308,7 @@ export default function InvoicesPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        ${invoice.totalAmount.toLocaleString()}
+                        {formatCurrency(invoice.totalAmount, currency)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span

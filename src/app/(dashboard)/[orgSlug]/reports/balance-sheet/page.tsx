@@ -42,6 +42,7 @@ interface BalanceSheetData {
 export default function BalanceSheetPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
+  const { currency } = useOrganization();
 
   const [balanceSheet, setBalanceSheet] = useState<BalanceSheetData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,7 +56,7 @@ export default function BalanceSheetPage() {
   async function fetchBalanceSheet() {
     try {
       setLoading(true);
-      const url = `/api/orgs/${orgSlug}/reports/balance-sheet?asOfDate=${asOfDate}`;
+      const url = `/api/orgs/{formatCurrency(orgSlug, currency)}/reports/balance-sheet?asOfDate={formatCurrency(asOfDate, currency)}`;
       const response = await fetch(url);
       
       if (!response.ok) throw new Error('Failed to fetch balance sheet');
@@ -86,7 +87,7 @@ export default function BalanceSheetPage() {
     return (
       <div className="space-y-4">
         <Alert variant="error">{error || 'Failed to load balance sheet'}</Alert>
-        <Link href={`/${orgSlug}/reports`}>
+        <Link href={`/{formatCurrency(orgSlug, currency)}/reports`}>
           <Button variant="outline">Back to Reports</Button>
         </Link>
       </div>
@@ -163,14 +164,14 @@ export default function BalanceSheetPage() {
                         <tr key={account.id}>
                           <td className="py-1 pl-4">
                             <Link
-                              href={`/${orgSlug}/general-ledger/chart-of-accounts/${account.id}`}
+                              href={`/{formatCurrency(orgSlug, currency)}/general-ledger/chart-of-accounts/{formatCurrency(account.id, currency)}`}
                               className="text-blue-600 hover:underline"
                             >
                               {account.code} - {account.name}
                             </Link>
                           </td>
                           <td className="py-1 text-right pr-4">
-                            ${account.balance.toFixed(2)}
+                            {formatCurrency(account.balance, currency)}
                           </td>
                         </tr>
                       ))}
@@ -198,14 +199,14 @@ export default function BalanceSheetPage() {
                         <tr key={account.id}>
                           <td className="py-1 pl-4">
                             <Link
-                              href={`/${orgSlug}/general-ledger/chart-of-accounts/${account.id}`}
+                              href={`/{formatCurrency(orgSlug, currency)}/general-ledger/chart-of-accounts/{formatCurrency(account.id, currency)}`}
                               className="text-blue-600 hover:underline"
                             >
                               {account.code} - {account.name}
                             </Link>
                           </td>
                           <td className="py-1 text-right pr-4">
-                            ${account.balance.toFixed(2)}
+                            {formatCurrency(account.balance, currency)}
                           </td>
                         </tr>
                       ))}
@@ -233,14 +234,14 @@ export default function BalanceSheetPage() {
                         <tr key={account.id}>
                           <td className="py-1 pl-4">
                             <Link
-                              href={`/${orgSlug}/general-ledger/chart-of-accounts/${account.id}`}
+                              href={`/{formatCurrency(orgSlug, currency)}/general-ledger/chart-of-accounts/{formatCurrency(account.id, currency)}`}
                               className="text-blue-600 hover:underline"
                             >
                               {account.code} - {account.name}
                             </Link>
                           </td>
                           <td className="py-1 text-right pr-4">
-                            ${account.balance.toFixed(2)}
+                            {formatCurrency(account.balance, currency)}
                           </td>
                         </tr>
                       ))}
@@ -265,7 +266,7 @@ export default function BalanceSheetPage() {
                     <tr className="text-lg font-bold">
                       <td className="py-2">TOTAL ASSETS</td>
                       <td className="py-2 text-right pr-4">
-                        ${balanceSheet.assets.totalAssets.toFixed(2)}
+                        {formatCurrency(balanceSheet.assets.totalAssets, currency)}
                       </td>
                     </tr>
                   </tbody>
@@ -291,14 +292,14 @@ export default function BalanceSheetPage() {
                         <tr key={account.id}>
                           <td className="py-1 pl-4">
                             <Link
-                              href={`/${orgSlug}/general-ledger/chart-of-accounts/${account.id}`}
+                              href={`/{formatCurrency(orgSlug, currency)}/general-ledger/chart-of-accounts/{formatCurrency(account.id, currency)}`}
                               className="text-blue-600 hover:underline"
                             >
                               {account.code} - {account.name}
                             </Link>
                           </td>
                           <td className="py-1 text-right pr-4">
-                            ${account.balance.toFixed(2)}
+                            {formatCurrency(account.balance, currency)}
                           </td>
                         </tr>
                       ))}
@@ -328,14 +329,14 @@ export default function BalanceSheetPage() {
                         <tr key={account.id}>
                           <td className="py-1 pl-4">
                             <Link
-                              href={`/${orgSlug}/general-ledger/chart-of-accounts/${account.id}`}
+                              href={`/{formatCurrency(orgSlug, currency)}/general-ledger/chart-of-accounts/{formatCurrency(account.id, currency)}`}
                               className="text-blue-600 hover:underline"
                             >
                               {account.code} - {account.name}
                             </Link>
                           </td>
                           <td className="py-1 text-right pr-4">
-                            ${account.balance.toFixed(2)}
+                            {formatCurrency(account.balance, currency)}
                           </td>
                         </tr>
                       ))}
@@ -360,7 +361,7 @@ export default function BalanceSheetPage() {
                     <tr className="font-bold">
                       <td className="py-2">Total Liabilities</td>
                       <td className="py-2 text-right pr-4">
-                        ${balanceSheet.liabilities.totalLiabilities.toFixed(2)}
+                        {formatCurrency(balanceSheet.liabilities.totalLiabilities, currency)}
                       </td>
                     </tr>
                   </tbody>
@@ -376,27 +377,27 @@ export default function BalanceSheetPage() {
                       <tr key={account.id}>
                         <td className="py-1 pl-4">
                           <Link
-                            href={`/${orgSlug}/general-ledger/chart-of-accounts/${account.id}`}
+                            href={`/{formatCurrency(orgSlug, currency)}/general-ledger/chart-of-accounts/{formatCurrency(account.id, currency)}`}
                             className="text-blue-600 hover:underline"
                           >
                             {account.code} - {account.name}
                           </Link>
                         </td>
                         <td className="py-1 text-right pr-4">
-                          ${account.balance.toFixed(2)}
+                          {formatCurrency(account.balance, currency)}
                         </td>
                       </tr>
                     ))}
                     <tr>
                       <td className="py-1 pl-4">Retained Earnings</td>
                       <td className="py-1 text-right pr-4">
-                        ${balanceSheet.equity.retainedEarnings.toFixed(2)}
+                        {formatCurrency(balanceSheet.equity.retainedEarnings, currency)}
                       </td>
                     </tr>
                     <tr className="border-t font-semibold">
                       <td className="py-2 pl-8">Total Equity</td>
                       <td className="py-2 text-right pr-4">
-                        ${balanceSheet.equity.totalEquity.toFixed(2)}
+                        {formatCurrency(balanceSheet.equity.totalEquity, currency)}
                       </td>
                     </tr>
                   </tbody>
@@ -429,9 +430,9 @@ export default function BalanceSheetPage() {
                 <span className="font-bold">Assets</span> = <span className="font-bold">Liabilities</span> + <span className="font-bold">Equity</span>
               </p>
               <p className="text-center text-xl font-bold text-blue-600 mt-2">
-                ${balanceSheet.assets.totalAssets.toFixed(2)} ={' '}
-                ${balanceSheet.liabilities.totalLiabilities.toFixed(2)} +{' '}
-                ${balanceSheet.equity.totalEquity.toFixed(2)}
+                {formatCurrency(balanceSheet.assets.totalAssets, currency)} ={' '}
+                {formatCurrency(balanceSheet.liabilities.totalLiabilities, currency)} +{' '}
+                {formatCurrency(balanceSheet.equity.totalEquity, currency)}
               </p>
               {balanceSheet.isBalanced ? (
                 <p className="text-center text-green-600 font-semibold mt-2">

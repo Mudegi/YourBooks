@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Mail, Phone, Building2, MapPin, CreditCard, Calendar, DollarSign, FileText } from 'lucide-react';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/utils';
 
 interface Invoice {
   id: string;
@@ -16,16 +18,18 @@ interface Invoice {
 
 interface Customer {
   id: string;
-  name: string;
+  name?: string;
+  firstName: string;
+  lastName: string;
   companyName: string | null;
   email: string | null;
   phone: string | null;
-  taxId: string | null;
-  billingAddress: string | null;
-  shippingAddress: string | null;
+  taxIdNumber: string | null;
+  billingAddress: any;
+  shippingAddress: any;
   notes: string | null;
   creditLimit: number | null;
-  paymentTerms: string;
+  paymentTerms: number;
   isActive: boolean;
   createdAt: string;
   invoices: Invoice[];
@@ -40,6 +44,7 @@ export default function CustomerDetailsPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
   const customerId = params.id as string;
+  const { currency } = useOrganization();
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,8 +93,8 @@ export default function CustomerDetailsPage() {
     );
   }
 
-  const formatPaymentTerms = (terms: string) => {
-    return terms.replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+  const formatPaymentTerms = (terms: number) => {
+    return terms === 0 ? 'Due on Receipt' : `Net ${terms}`;
   };
 
   const getStatusColor = (status: string) => {
@@ -105,6 +110,19 @@ export default function CustomerDetailsPage() {
     }
   };
 
+  const displayName = (customer?.name || `${customer?.firstName ?? ''} ${customer?.lastName ?? ''}`).trim();
+
+  const formatAddress = (address: any) => {
+    if (!address) return '';
+    if (typeof address === 'string') return address;
+    if (typeof address === 'object') {
+      return [address.street, address.city, address.state, address.zip, address.country]
+        .filter(Boolean)
+        .join('\n');
+    }
+    return '';
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -117,7 +135,7 @@ export default function CustomerDetailsPage() {
             <ArrowLeft className="h-6 w-6 text-gray-600" />
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{customer.name}</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{displayName}</h1>
             {customer.companyName && (
               <p className="text-gray-600 mt-1">{customer.companyName}</p>
             )}
@@ -142,7 +160,7 @@ export default function CustomerDetailsPage() {
             <DollarSign className="h-5 w-5 text-orange-500" />
           </div>
           <div className="text-2xl font-bold text-gray-900">
-            ${customer.totalOwed.toLocaleString()}
+            {formatCurrency(customer.totalOwed, currency)}
           </div>
         </div>
 
@@ -152,7 +170,7 @@ export default function CustomerDetailsPage() {
             <DollarSign className="h-5 w-5 text-green-500" />
           </div>
           <div className="text-2xl font-bold text-gray-900">
-            ${customer.totalPaid.toLocaleString()}
+            {formatCurrency(customer.totalPaid, currency)}
           </div>
         </div>
 
@@ -172,7 +190,7 @@ export default function CustomerDetailsPage() {
             <CreditCard className="h-5 w-5 text-purple-500" />
           </div>
           <div className="text-2xl font-bold text-gray-900">
-            {customer.creditLimit ? `$${customer.creditLimit.toLocaleString()}` : 'Unlimited'}
+            {customer.creditLimit ? formatCurrency(customer.creditLimit, currency) : 'Unlimited'}
           </div>
         </div>
       </div>
@@ -214,12 +232,12 @@ export default function CustomerDetailsPage() {
                 </div>
               )}
 
-              {customer.taxId && (
+              {customer.taxIdNumber && (
                 <div className="flex items-start">
                   <FileText className="h-5 w-5 text-gray-400 mt-0.5 mr-3" />
                   <div>
                     <div className="text-sm text-gray-500">Tax ID</div>
-                    <div className="text-gray-900">{customer.taxId}</div>
+                    <div className="text-gray-900">{customer.taxIdNumber}</div>
                   </div>
                 </div>
               )}
@@ -238,7 +256,7 @@ export default function CustomerDetailsPage() {
                       <div className="text-sm font-medium text-gray-700">Billing Address</div>
                     </div>
                     <div className="text-gray-900 whitespace-pre-line pl-6">
-                      {customer.billingAddress}
+                      {formatAddress(customer.billingAddress)}
                     </div>
                   </div>
                 )}
@@ -250,7 +268,7 @@ export default function CustomerDetailsPage() {
                       <div className="text-sm font-medium text-gray-700">Shipping Address</div>
                     </div>
                     <div className="text-gray-900 whitespace-pre-line pl-6">
-                      {customer.shippingAddress}
+                      {formatAddress(customer.shippingAddress)}
                     </div>
                   </div>
                 )}
@@ -344,8 +362,8 @@ export default function CustomerDetailsPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {new Date(invoice.dueDate).toLocaleDateString()}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          ${invoice.totalAmount.toLocaleString()}
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {formatCurrency(invoice.totalAmount, currency)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span

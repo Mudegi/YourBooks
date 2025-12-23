@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/currency';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,6 +42,7 @@ interface ProfitLossData {
 export default function ProfitLossPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
+  const { currency } = useOrganization();
 
   const [profitLoss, setProfitLoss] = useState<ProfitLossData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -160,14 +163,14 @@ export default function ProfitLossPage() {
                           </Link>
                         </td>
                         <td className="py-1 text-right pr-4">
-                          ${account.amount.toFixed(2)}
+                          {formatCurrency(account.amount, currency)}
                         </td>
                       </tr>
                     ))}
                     <tr className="border-t-2 font-bold text-lg">
                       <td className="py-2 pl-4">Total Revenue</td>
                       <td className="py-2 text-right pr-4">
-                        ${profitLoss.revenue.totalRevenue.toFixed(2)}
+                        {formatCurrency(profitLoss.revenue.totalRevenue, currency)}
                       </td>
                     </tr>
                   </tbody>
@@ -196,14 +199,14 @@ export default function ProfitLossPage() {
                           </Link>
                         </td>
                         <td className="py-1 text-right pr-4">
-                          ${account.amount.toFixed(2)}
+                          {formatCurrency(account.amount, currency)}
                         </td>
                       </tr>
                     ))}
                     <tr className="border-t-2 font-bold">
                       <td className="py-2 pl-4">Total Cost of Goods Sold</td>
                       <td className="py-2 text-right pr-4">
-                        ${profitLoss.costOfGoodsSold.totalCOGS.toFixed(2)}
+                        {formatCurrency(profitLoss.costOfGoodsSold.totalCOGS, currency)}
                       </td>
                     </tr>
                   </tbody>
@@ -225,7 +228,7 @@ export default function ProfitLossPage() {
                             : 'text-red-600'
                         }
                       >
-                        ${profitLoss.grossProfit.toFixed(2)}
+                        {formatCurrency(profitLoss.grossProfit, currency)}
                       </span>
                     </td>
                   </tr>
@@ -252,14 +255,14 @@ export default function ProfitLossPage() {
                           </Link>
                         </td>
                         <td className="py-1 text-right pr-4">
-                          ${account.amount.toFixed(2)}
+                          {formatCurrency(account.amount, currency)}
                         </td>
                       </tr>
                     ))}
                     <tr className="border-t-2 font-bold">
                       <td className="py-2 pl-4">Total Operating Expenses</td>
                       <td className="py-2 text-right pr-4">
-                        ${profitLoss.expenses.totalExpenses.toFixed(2)}
+                        {formatCurrency(profitLoss.expenses.totalExpenses, currency)}
                       </td>
                     </tr>
                   </tbody>
@@ -283,7 +286,7 @@ export default function ProfitLossPage() {
                             : 'text-red-600'
                         }
                       >
-                        ${profitLoss.netIncome.toFixed(2)}
+                        {formatCurrency(profitLoss.netIncome, currency)}
                       </span>
                     </td>
                   </tr>
@@ -292,11 +295,11 @@ export default function ProfitLossPage() {
               <div className="mt-4 text-sm text-gray-700 text-center">
                 <p>Revenue - COGS = Gross Profit - Expenses = Net Income</p>
                 <p className="mt-1">
-                  ${profitLoss.revenue.totalRevenue.toFixed(2)} -{' '}
-                  ${profitLoss.costOfGoodsSold.totalCOGS.toFixed(2)} ={' '}
-                  ${profitLoss.grossProfit.toFixed(2)} -{' '}
-                  ${profitLoss.expenses.totalExpenses.toFixed(2)} ={' '}
-                  <span className="font-bold">${profitLoss.netIncome.toFixed(2)}</span>
+                  {formatCurrency(profitLoss.revenue.totalRevenue, currency)} -{' '}
+                  {formatCurrency(profitLoss.costOfGoodsSold.totalCOGS, currency)} ={' '}
+                  {formatCurrency(profitLoss.grossProfit, currency)} -{' '}
+                  {formatCurrency(profitLoss.expenses.totalExpenses, currency)} ={' '}
+                  <span className="font-bold">{formatCurrency(profitLoss.netIncome, currency)}</span>
                 </p>
               </div>
             </div>

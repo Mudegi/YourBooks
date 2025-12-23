@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, TrendingUp, TrendingDown, Calendar, Filter } from 'lucide-react';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/utils';
 
 interface LedgerEntry {
   id: string;
@@ -34,6 +36,7 @@ export default function AccountDetailsPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
   const accountId = params.id as string;
+  const { currency } = useOrganization();
 
   const [account, setAccount] = useState<Account | null>(null);
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
@@ -175,7 +178,7 @@ export default function AccountDetailsPage() {
             <TrendingUp className="h-5 w-5 text-blue-500" />
           </div>
           <div className="text-2xl font-bold text-gray-900">
-            ${account.balance.toLocaleString()}
+            {formatCurrency(Number(account.balance), currency)}
           </div>
         </div>
 
@@ -185,7 +188,7 @@ export default function AccountDetailsPage() {
             <TrendingUp className="h-5 w-5 text-green-500" />
           </div>
           <div className="text-2xl font-bold text-gray-900">
-            ${stats.totalDebits.toLocaleString()}
+            {formatCurrency(stats.totalDebits, currency)}
           </div>
         </div>
 
@@ -195,7 +198,7 @@ export default function AccountDetailsPage() {
             <TrendingDown className="h-5 w-5 text-red-500" />
           </div>
           <div className="text-2xl font-bold text-gray-900">
-            ${stats.totalCredits.toLocaleString()}
+            {formatCurrency(stats.totalCredits, currency)}
           </div>
         </div>
 
@@ -209,7 +212,7 @@ export default function AccountDetailsPage() {
               stats.netChange >= 0 ? 'text-green-600' : 'text-red-600'
             }`}
           >
-            ${Math.abs(stats.netChange).toLocaleString()}
+            {formatCurrency(Math.abs(stats.netChange), currency)}
             {stats.netChange >= 0 ? ' DR' : ' CR'}
           </div>
         </div>
@@ -323,7 +326,7 @@ export default function AccountDetailsPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
                       {entry.entryType === 'DEBIT' ? (
                         <span className="font-medium text-green-600">
-                          ${entry.amount.toLocaleString()}
+                          {formatCurrency(entry.amount, currency)}
                         </span>
                       ) : (
                         <span className="text-gray-400">-</span>
@@ -332,14 +335,14 @@ export default function AccountDetailsPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
                       {entry.entryType === 'CREDIT' ? (
                         <span className="font-medium text-red-600">
-                          ${entry.amount.toLocaleString()}
+                          {formatCurrency(entry.amount, currency)}
                         </span>
                       ) : (
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
-                      ${entry.balance.toLocaleString()}
+                      {formatCurrency(entry.balance, currency)}
                     </td>
                   </tr>
                 ))}

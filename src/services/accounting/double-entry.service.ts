@@ -30,6 +30,8 @@ export interface TransactionInput {
   entries: LedgerEntryInput[];
 }
 
+type PrismaTransaction = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
 export class DoubleEntryService {
   /**
    * Validates that debits equal credits
@@ -81,8 +83,13 @@ export class DoubleEntryService {
   /**
    * Creates a transaction with ledger entries
    * Validates double-entry balance before saving
+   * @param input Transaction input data
+   * @param tx Optional Prisma transaction client for nested transactions (for bill creation, etc.)
    */
-  static async createTransaction(input: TransactionInput) {
+  static async createTransaction(
+    input: TransactionInput,
+    tx?: PrismaTransaction
+  ) {
     // Validate balance
     if (!this.validateBalance(input.entries)) {
       const summary = this.getBalanceSummary(input.entries);
@@ -110,100 +117,117 @@ export class DoubleEntryService {
       input.transactionType
     );
 
+    // Use provided transaction client or create a new one
+    const client = tx || prisma;
+
     // Create transaction with entries in a database transaction
-    const transaction = await prisma.$transaction(async (tx) => {
-      // Create the transaction
-      const newTransaction = await tx.transaction.create({
-        data: {
-          organizationId: input.organizationId,
-          transactionNumber,
-          transactionDate: input.transactionDate,
-          transactionType: input.transactionType,
-          description: input.description,
-          notes: input.notes,
-          referenceType: input.referenceType,
-          referenceId: input.referenceId,
-          status: TransactionStatus.POSTED,
-          createdById: input.createdById,
-          ledgerEntries: {
-            create: input.entries.map(entry => {
-              const amount = new Decimal(entry.amount);
-              const exchangeRate = new Decimal(entry.exchangeRate || 1);
-              const amountInBase = amount.times(exchangeRate);
-
-              return {
-                accountId: entry.accountId,
-                entryType: entry.entryType,
-                amount: amount.toNumber(),
-                currency: entry.currency || 'USD',
-                exchangeRate: exchangeRate.toNumber(),
-                amountInBase: amountInBase.toNumber(),
-                description: entry.description,
-              };
-            }),
-          },
-        },
-        include: {
-          ledgerEntries: {
-            include: {
-              account: true,
-            },
-          },
-        },
-      });
-
-      // Update account balances
-      for (const entry of input.entries) {
-        const amount = new Decimal(entry.amount);
-        const account = await tx.chartOfAccount.findUnique({
-          where: { id: entry.accountId },
-        });
-
-        if (!account) {
-          throw new Error(`Account ${entry.accountId} not found`);
-        }
-
-        // Calculate new balance based on account type and entry type
-        let newBalance = new Decimal(account.balance);
-
-        // Assets and Expenses increase with Debits, decrease with Credits
-        // Liabilities, Equity, and Revenue increase with Credits, decrease with Debits
-        if (
-          (account.accountType === 'ASSET' || 
-           account.accountType === 'EXPENSE' ||
-           account.accountType === 'COST_OF_SALES') &&
-          entry.entryType === EntryType.DEBIT
-        ) {
-          newBalance = newBalance.plus(amount);
-        } else if (
-          (account.accountType === 'ASSET' || 
-           account.accountType === 'EXPENSE' ||
-           account.accountType === 'COST_OF_SALES') &&
-          entry.entryType === EntryType.CREDIT
-        ) {
-          newBalance = newBalance.minus(amount);
-        } else if (
-          (account.accountType === 'LIABILITY' || 
-           account.accountType === 'EQUITY' ||
-           account.accountType === 'REVENUE') &&
-          entry.entryType === EntryType.CREDIT
-        ) {
-          newBalance = newBalance.plus(amount);
-        } else {
-          newBalance = newBalance.minus(amount);
-        }
-
-        // Update account balance
-        await tx.chartOfAccount.update({
-          where: { id: entry.accountId },
-          data: { balance: newBalance.toNumber() },
-        });
-      }
-
-      return newTransaction;
-    });
+    const transaction = await (tx 
+      ? this.createTransactionInClient(client, input, transactionNumber)
+      : prisma.$transaction(async (innerTx) => {
+          return this.createTransactionInClient(innerTx, input, transactionNumber);
+        })
+    );
 
     return transaction;
+  }
+
+  /**
+   * Helper to create transaction within a Prisma transaction client
+   */
+  private static async createTransactionInClient(
+    client: any,
+    input: TransactionInput,
+    transactionNumber: string
+  ) {
+    // Create the transaction
+    const newTransaction = await client.transaction.create({
+      data: {
+        organizationId: input.organizationId,
+        transactionNumber,
+        transactionDate: input.transactionDate,
+        transactionType: input.transactionType,
+        description: input.description,
+        notes: input.notes,
+        referenceType: input.referenceType,
+        referenceId: input.referenceId,
+        status: TransactionStatus.POSTED,
+        createdById: input.createdById,
+        ledgerEntries: {
+          create: input.entries.map(entry => {
+            const amount = new Decimal(entry.amount);
+            const exchangeRate = new Decimal(entry.exchangeRate || 1);
+            const amountInBase = amount.times(exchangeRate);
+
+            return {
+              accountId: entry.accountId,
+              entryType: entry.entryType,
+              amount: amount.toNumber(),
+              currency: entry.currency || 'USD',
+              exchangeRate: exchangeRate.toNumber(),
+              amountInBase: amountInBase.toNumber(),
+              description: entry.description,
+            };
+          }),
+        },
+      },
+      include: {
+        ledgerEntries: {
+          include: {
+            account: true,
+          },
+        },
+      },
+    });
+
+    // Update account balances
+    for (const entry of input.entries) {
+      const amount = new Decimal(entry.amount);
+      const account = await client.chartOfAccount.findUnique({
+        where: { id: entry.accountId },
+      });
+
+      if (!account) {
+        throw new Error(`Account ${entry.accountId} not found`);
+      }
+
+      // Calculate new balance based on account type and entry type
+      let newBalance = new Decimal(account.balance);
+
+      // Assets and Expenses increase with Debits, decrease with Credits
+      // Liabilities, Equity, and Revenue increase with Credits, decrease with Debits
+      if (
+        (account.accountType === 'ASSET' || 
+         account.accountType === 'EXPENSE' ||
+         account.accountType === 'COST_OF_SALES') &&
+        entry.entryType === EntryType.DEBIT
+      ) {
+        newBalance = newBalance.plus(amount);
+      } else if (
+        (account.accountType === 'ASSET' || 
+         account.accountType === 'EXPENSE' ||
+         account.accountType === 'COST_OF_SALES') &&
+        entry.entryType === EntryType.CREDIT
+      ) {
+        newBalance = newBalance.minus(amount);
+      } else if (
+        (account.accountType === 'LIABILITY' || 
+         account.accountType === 'EQUITY' ||
+         account.accountType === 'REVENUE') &&
+        entry.entryType === EntryType.CREDIT
+      ) {
+        newBalance = newBalance.plus(amount);
+      } else {
+        newBalance = newBalance.minus(amount);
+      }
+
+      // Update account balance
+      await client.chartOfAccount.update({
+        where: { id: entry.accountId },
+        data: { balance: newBalance.toNumber() },
+      });
+    }
+
+    return newTransaction;
   }
 
   /**
@@ -261,10 +285,43 @@ export class DoubleEntryService {
   }
 
   /**
-   * Voids a transaction (reverses all entries)
+   * Posts a transaction (for systems that draft first, then post)
    */
-  static async voidTransaction(transactionId: string, userId: string) {
+  static async postTransaction(transactionId: string) {
     const transaction = await prisma.transaction.findUnique({
+      where: { id: transactionId },
+      include: { ledgerEntries: true },
+    });
+
+    if (!transaction) {
+      throw new Error('Transaction not found');
+    }
+
+    if (transaction.status === TransactionStatus.POSTED) {
+      return transaction; // Already posted
+    }
+
+    // Update status to posted
+    return await prisma.transaction.update({
+      where: { id: transactionId },
+      data: { status: TransactionStatus.POSTED },
+    });
+  }
+
+  /**
+   * Voids a transaction (reverses all entries)
+   * @param transactionId Transaction to void
+   * @param userId User performing the void
+   * @param tx Optional Prisma transaction client for nested transactions
+   */
+  static async voidTransaction(
+    transactionId: string,
+    userId: string,
+    tx?: PrismaTransaction
+  ) {
+    const client = tx || prisma;
+
+    const transaction = await client.transaction.findUnique({
       where: { id: transactionId },
       include: { ledgerEntries: true },
     });
@@ -299,10 +356,10 @@ export class DoubleEntryService {
       referenceId: transactionId,
       createdById: userId,
       entries: reversingEntries,
-    });
+    }, tx);
 
     // Update original transaction status
-    await prisma.transaction.update({
+    await client.transaction.update({
       where: { id: transactionId },
       data: { status: TransactionStatus.VOIDED },
     });

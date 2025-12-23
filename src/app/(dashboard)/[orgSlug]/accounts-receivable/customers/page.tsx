@@ -4,14 +4,20 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Search, Pencil, Trash2, Mail, Phone, Building2 } from 'lucide-react';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/utils';
 
 interface Customer {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
+  name?: string;
+  customerNumber?: string;
   companyName: string | null;
   email: string | null;
   phone: string | null;
   isActive: boolean;
+  paymentTerms?: number;
   totalOwed: number;
   _count: {
     invoices: number;
@@ -21,6 +27,7 @@ interface Customer {
 export default function CustomersPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
+  const { currency } = useOrganization();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,8 +87,9 @@ export default function CustomersPage() {
   };
 
   const filteredCustomers = customers.filter((customer) => {
+    const displayName = (customer.name || `${customer.firstName} ${customer.lastName}`).trim();
     const matchesSearch =
-      customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       customer.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       customer.companyName?.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
@@ -171,7 +179,7 @@ export default function CustomersPage() {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                    {customer.name}
+                    {(customer.name || `${customer.firstName} ${customer.lastName}`).trim()}
                   </h3>
                   {customer.companyName && (
                     <div className="flex items-center text-sm text-gray-600 mb-2">
@@ -213,7 +221,7 @@ export default function CustomersPage() {
                   <div>
                     <div className="text-xs text-gray-500">Total Owed</div>
                     <div className="text-lg font-semibold text-gray-900">
-                      ${customer.totalOwed.toLocaleString()}
+                      {formatCurrency(customer.totalOwed, currency)}
                     </div>
                   </div>
                   <div>
@@ -269,7 +277,7 @@ export default function CustomersPage() {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-sm text-gray-600 mb-1">Total Outstanding</div>
           <div className="text-3xl font-bold text-orange-600">
-            ${customers.reduce((sum, c) => sum + c.totalOwed, 0).toLocaleString()}
+            {formatCurrency(customers.reduce((sum, c) => sum + c.totalOwed, 0), currency)}
           </div>
         </div>
       </div>
@@ -310,17 +318,56 @@ function CustomerFormModal({
   customer?: Customer | null;
 }) {
   const [formData, setFormData] = useState({
-    name: customer?.name || '',
+    firstName: customer?.firstName || '',
+    lastName: customer?.lastName || '',
     companyName: customer?.companyName || '',
     email: customer?.email || '',
     phone: customer?.phone || '',
-    billingAddress: '',
-    shippingAddress: '',
-    paymentTerms: 'NET_30',
+    paymentTerms: (customer?.paymentTerms ?? 30).toString(),
     isActive: customer?.isActive ?? true,
+    region: '',
+    taxCategory: 'STANDARD' as 'STANDARD' | 'ZERO_RATED' | 'EXEMPT' | 'NON_TAXABLE',
+    defaultRevenueAccountId: '',
+    openingBalance: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [revenueAccounts, setRevenueAccounts] = useState<Array<{ id: string; code: string; name: string }>>([]);
+
+  useEffect(() => {
+    fetchRevenueAccounts();
+  }, []);
+
+  useEffect(() => {
+    setFormData({
+      firstName: customer?.firstName || '',
+      lastName: customer?.lastName || '',
+      companyName: customer?.companyName || '',
+      email: customer?.email || '',
+      phone: customer?.phone || '',
+      paymentTerms: (customer?.paymentTerms ?? 30).toString(),
+      isActive: customer?.isActive ?? true,
+      region: '',
+      taxCategory: 'STANDARD',
+      defaultRevenueAccountId: '',
+      openingBalance: '',
+    });
+  }, [customer]);
+
+  const fetchRevenueAccounts = async () => {
+    try {
+      const response = await fetch(`/api/orgs/${orgSlug}/chart-of-accounts`);
+      const data = await response.json();
+      if (data.success) {
+        const revenue = data.data.filter(
+          (acc: any) => acc.accountType === 'REVENUE' && acc.isActive
+        );
+        setRevenueAccounts(revenue);
+      }
+    } catch (err) {
+      console.error('Error fetching revenue accounts:', err);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -334,20 +381,43 @@ function CustomerFormModal({
 
       const method = customer ? 'PUT' : 'POST';
 
+      const payload: Record<string, any> = {
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        paymentTerms: Number(formData.paymentTerms),
+        isActive: formData.isActive,
+      };
+
+      if (formData.email.trim()) payload.email = formData.email.trim();
+      if (formData.companyName.trim()) payload.companyName = formData.companyName.trim();
+      if (formData.phone.trim()) payload.phone = formData.phone.trim();
+      if (formData.region.trim()) payload.region = formData.region.trim();
+      if (formData.taxCategory) payload.taxCategory = formData.taxCategory;
+      if (formData.defaultRevenueAccountId) payload.defaultRevenueAccountId = formData.defaultRevenueAccountId;
+      if (formData.openingBalance && !customer) {
+        const obValue = parseFloat(formData.openingBalance);
+        if (!isNaN(obValue) && obValue > 0) {
+          payload.openingBalance = obValue;
+        }
+      }
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to save customer');
+        const errorMsg = data.message || data.error || 'Failed to save customer';
+        console.error('Customer creation error:', data);
+        throw new Error(errorMsg);
       }
 
       onSuccess();
     } catch (err) {
+      console.error('Submit error:', err);
       setError(err instanceof Error ? err.message : 'Failed to save customer');
     } finally {
       setLoading(false);
@@ -376,17 +446,31 @@ function CustomerFormModal({
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Customer Name *
+                First Name *
               </label>
               <input
                 type="text"
                 required
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="John Doe"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Jane"
+                value={formData.firstName}
+                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Last Name *
+              </label>
+              <input
+                type="text"
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Doe"
+                value={formData.lastName}
+                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
               />
             </div>
 
@@ -431,6 +515,19 @@ function CustomerFormModal({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
+                Region/Country
+              </label>
+              <input
+                type="text"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Uganda, Kenya, etc."
+                value={formData.region}
+                onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Payment Terms
               </label>
               <select
@@ -438,15 +535,70 @@ function CustomerFormModal({
                 value={formData.paymentTerms}
                 onChange={(e) => setFormData({ ...formData, paymentTerms: e.target.value })}
               >
-                <option value="DUE_ON_RECEIPT">Due on Receipt</option>
-                <option value="NET_15">Net 15</option>
-                <option value="NET_30">Net 30</option>
-                <option value="NET_60">Net 60</option>
-                <option value="NET_90">Net 90</option>
+                <option value="0">Due on Receipt</option>
+                <option value="15">Net 15</option>
+                <option value="30">Net 30</option>
+                <option value="60">Net 60</option>
+                <option value="90">Net 90</option>
               </select>
             </div>
 
-            <div className="flex items-center pt-8">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tax Category
+              </label>
+              <select
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={formData.taxCategory}
+                onChange={(e) => setFormData({ ...formData, taxCategory: e.target.value as any })}
+              >
+                <option value="STANDARD">Standard VAT (18%)</option>
+                <option value="ZERO_RATED">Zero-Rated (0%)</option>
+                <option value="EXEMPT">Exempt</option>
+                <option value="NON_TAXABLE">Non-Taxable</option>
+              </select>
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Default Revenue Account
+              </label>
+              <select
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={formData.defaultRevenueAccountId}
+                onChange={(e) => setFormData({ ...formData, defaultRevenueAccountId: e.target.value })}
+              >
+                <option value="">-- Select Revenue Account (Optional) --</option>
+                {revenueAccounts.map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.code} - {acc.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {!customer && (
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Opening Balance (Optional)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="0.00"
+                  value={formData.openingBalance}
+                  onChange={(e) => setFormData({ ...formData, openingBalance: e.target.value })}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  If this customer has an outstanding balance from a previous system, enter it here. 
+                  A migration journal entry will be created automatically.
+                </p>
+              </div>
+            )}
+
+            <div className="flex items-center pt-4 col-span-2">
               <input
                 type="checkbox"
                 id="isActive"

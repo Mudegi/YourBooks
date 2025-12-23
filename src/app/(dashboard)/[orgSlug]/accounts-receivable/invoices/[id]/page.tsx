@@ -14,6 +14,8 @@ import {
   Phone,
   DollarSign,
 } from 'lucide-react';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/utils';
 
 interface PaymentAllocation {
   id: string;
@@ -86,6 +88,7 @@ export default function InvoiceDetailsPage() {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const { currency } = useOrganization();
 
   useEffect(() => {
     fetchInvoice();
@@ -267,26 +270,26 @@ export default function InvoiceDetailsPage() {
             <div>
               <p className="text-sm text-gray-600">Total Amount</p>
               <p className="text-2xl font-bold text-gray-900">
-                ${invoice.totalAmount.toFixed(2)}
+                    {formatCurrency(invoice.totalAmount, currency)}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Amount Paid</p>
               <p className="text-2xl font-bold text-green-600">
-                $
-                {invoice.paymentAllocations
-                  .reduce((sum, p) => sum + p.amount, 0)
-                  .toFixed(2)}
+                    {formatCurrency(
+                      invoice.paymentAllocations.reduce((sum, p) => sum + p.amount, 0),
+                      currency
+                    )}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Amount Due</p>
               <p className="text-2xl font-bold text-red-600">
-                $
-                {(
-                  invoice.totalAmount -
-                  invoice.paymentAllocations.reduce((sum, p) => sum + p.amount, 0)
-                ).toFixed(2)}
+                    {formatCurrency(
+                      invoice.totalAmount -
+                        invoice.paymentAllocations.reduce((sum, p) => sum + p.amount, 0),
+                      currency
+                    )}
               </p>
             </div>
           </div>
@@ -316,7 +319,7 @@ export default function InvoiceDetailsPage() {
                       {allocation.payment.referenceNumber || '—'}
                     </td>
                     <td className="px-4 py-2 text-right font-medium text-green-600">
-                      ${allocation.amount.toFixed(2)}
+                      {formatCurrency(allocation.amount, currency)}
                     </td>
                     <td className="px-4 py-2 text-center">
                       <Link
@@ -428,11 +431,11 @@ export default function InvoiceDetailsPage() {
                   <td className="py-3 text-gray-900">{item.description}</td>
                   <td className="py-3 text-right text-gray-900">{item.quantity}</td>
                   <td className="py-3 text-right text-gray-900">
-                    ${item.unitPrice.toFixed(2)}
+                    {formatCurrency(item.unitPrice, currency)}
                   </td>
                   <td className="py-3 text-right text-gray-900">{item.taxRate}%</td>
                   <td className="py-3 text-right font-medium text-gray-900">
-                    ${item.lineTotal.toFixed(2)}
+                    {formatCurrency(item.lineTotal, currency)}
                   </td>
                 </tr>
               ))}
@@ -445,15 +448,15 @@ export default function InvoiceDetailsPage() {
           <div className="w-80 space-y-2">
             <div className="flex justify-between text-gray-600">
               <span>Subtotal:</span>
-              <span className="font-medium">${invoice.subtotalAmount.toFixed(2)}</span>
+                <span className="font-medium">{formatCurrency(invoice.subtotalAmount, currency)}</span>
             </div>
             <div className="flex justify-between text-gray-600">
               <span>Tax:</span>
-              <span className="font-medium">${invoice.taxAmount.toFixed(2)}</span>
+                <span className="font-medium">{formatCurrency(invoice.taxAmount, currency)}</span>
             </div>
             <div className="flex justify-between text-xl font-bold border-t-2 border-gray-300 pt-2">
               <span>Total:</span>
-              <span className="text-blue-600">${invoice.totalAmount.toFixed(2)}</span>
+                <span className="text-blue-600">{formatCurrency(invoice.totalAmount, currency)}</span>
             </div>
           </div>
         </div>
@@ -498,10 +501,10 @@ export default function InvoiceDetailsPage() {
                         {entry.account.code} - {entry.account.name}
                       </td>
                       <td className="px-4 py-2 text-right text-gray-900">
-                        {entry.entryType === 'DEBIT' ? `$${entry.amount.toFixed(2)}` : '-'}
+                        {entry.entryType === 'DEBIT' ? formatCurrency(entry.amount, currency) : '-'}
                       </td>
                       <td className="px-4 py-2 text-right text-gray-900">
-                        {entry.entryType === 'CREDIT' ? `$${entry.amount.toFixed(2)}` : '-'}
+                        {entry.entryType === 'CREDIT' ? formatCurrency(entry.amount, currency) : '-'}
                       </td>
                     </tr>
                   ))}

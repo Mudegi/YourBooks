@@ -31,7 +31,9 @@ import {
   LineChart,
   ClipboardCheck,
   MapPin,
+  Lock,
 } from 'lucide-react';
+import { hasFeature, getTierDisplayName, getTierBadgeColor, type PackageTier } from '@/lib/package-features';
 
 interface User {
   id: string;
@@ -44,7 +46,9 @@ interface Organization {
   id: string;
   name: string;
   slug: string;
-  package?: 'PRO' | 'ADVANCED';
+  package?: PackageTier;
+  onboardingCompleted?: boolean;
+  industry?: string;
 }
 
 export default function DashboardLayout({
@@ -99,10 +103,10 @@ export default function DashboardLayout({
         setTimeout(() => searchInputRef.current?.focus(), 10);
       }
       if (e.key === 'g') {
-        window.__pendingShortcut = true;
-        setTimeout(() => (window.__pendingShortcut = false), 500);
+        (window as any).__pendingShortcut = true;
+        setTimeout(() => ((window as any).__pendingShortcut = false), 500);
       }
-      if (window.__pendingShortcut && e.key === 'i') {
+      if ((window as any).__pendingShortcut && e.key === 'i') {
         router.push(`/${orgSlug}/accounts-receivable/invoices`);
       }
     };
@@ -122,6 +126,12 @@ export default function DashboardLayout({
         const data = await response.json();
         setUser(data.data.user);
         setOrganization(data.data.organization);
+        
+        // Check if onboarding is completed
+        if (data.data.organization && !data.data.organization.onboardingCompleted) {
+          router.push('/onboarding');
+          return;
+        }
       } else {
         router.push('/login');
       }
@@ -150,22 +160,24 @@ export default function DashboardLayout({
   }
 
   const orgPackage = organization?.package || 'ADVANCED';
-  const isPro = orgPackage === 'PRO';
 
   const navigation = [
     {
       name: 'Dashboard',
       href: `/${orgSlug}/dashboard`,
       icon: LayoutDashboard,
+      featureKey: 'dashboard',
     },
     {
       name: 'Financial Overview',
       href: `/${orgSlug}/dashboard/financial`,
       icon: TrendingUp,
+      featureKey: 'dashboard',
     },
     {
       name: 'General Ledger',
       icon: BookOpen,
+      featureKey: 'general-ledger',
       children: [
         { name: 'Chart of Accounts', href: `/${orgSlug}/general-ledger/chart-of-accounts` },
         { name: 'Journal Entries', href: `/${orgSlug}/general-ledger/journal-entries/list` },
@@ -175,6 +187,7 @@ export default function DashboardLayout({
     {
       name: 'Accounts Receivable',
       icon: Users,
+      featureKey: 'accounts-receivable',
       children: [
         { name: 'Customers', href: `/${orgSlug}/accounts-receivable/customers` },
         { name: 'Invoices', href: `/${orgSlug}/accounts-receivable/invoices` },
@@ -184,6 +197,7 @@ export default function DashboardLayout({
     {
       name: 'Accounts Payable',
       icon: FileText,
+      featureKey: 'accounts-payable',
       children: [
         { name: 'Vendors', href: `/${orgSlug}/accounts-payable/vendors` },
         { name: 'Bills', href: `/${orgSlug}/accounts-payable/bills` },
@@ -193,6 +207,7 @@ export default function DashboardLayout({
     {
       name: 'Payments',
       icon: CreditCard,
+      featureKey: 'payments',
       children: [
         { name: 'All Payments', href: `/${orgSlug}/payments` },
         { name: 'Customer Payment', href: `/${orgSlug}/payments/customer` },
@@ -202,6 +217,7 @@ export default function DashboardLayout({
     {
       name: 'Banking',
       icon: Building2,
+      featureKey: 'banking',
       children: [
         { name: 'Bank Accounts', href: `/${orgSlug}/banking/accounts` },
         { name: 'Transfer Funds', href: `/${orgSlug}/banking/transfers` },
@@ -211,6 +227,7 @@ export default function DashboardLayout({
     {
       name: 'Inventory',
       icon: Package,
+      featureKey: 'inventory',
       children: [
         { name: 'Products', href: `/${orgSlug}/inventory/products` },
         { name: 'Stock Movements', href: `/${orgSlug}/inventory/movements` },
@@ -220,6 +237,7 @@ export default function DashboardLayout({
     {
       name: 'Reports',
       icon: TrendingUp,
+      featureKey: 'reports',
       children: [
         { name: 'All Reports', href: `/${orgSlug}/reports` },
         { name: 'Balance Sheet', href: `/${orgSlug}/reports/balance-sheet` },
@@ -233,7 +251,7 @@ export default function DashboardLayout({
     {
       name: 'Banking & Operations',
       icon: Settings,
-      requiresAdvanced: true,
+      featureKey: 'bank-feeds',
       children: [
         { name: 'Bank Feeds', href: `/${orgSlug}/bank-feeds` },
         { name: 'Documents', href: `/${orgSlug}/documents` },
@@ -242,8 +260,8 @@ export default function DashboardLayout({
     },
     {
       name: 'CRM',
-      icon: Settings,
-      requiresAdvanced: true,
+      icon: Briefcase,
+      featureKey: 'crm',
       children: [
         { name: 'Companies', href: `/${orgSlug}/crm/companies` },
         { name: 'Contacts', href: `/${orgSlug}/crm/contacts` },
@@ -253,7 +271,7 @@ export default function DashboardLayout({
     {
       name: 'Warehouse',
       icon: Building2,
-      requiresAdvanced: true,
+      featureKey: 'warehouse',
       children: [
         { name: 'Warehouses', href: `/${orgSlug}/warehouse/warehouses` },
         { name: 'Transfer Orders', href: `/${orgSlug}/warehouse/transfer-orders` },
@@ -262,7 +280,7 @@ export default function DashboardLayout({
     {
       name: 'Manufacturing',
       icon: Factory,
-      requiresAdvanced: true,
+      featureKey: 'manufacturing',
       children: [
         { name: 'BOMs', href: `/${orgSlug}/manufacturing/boms` },
         { name: 'Work Orders', href: `/${orgSlug}/manufacturing/work-orders` },
@@ -271,7 +289,7 @@ export default function DashboardLayout({
     {
       name: 'HCM / Payroll',
       icon: UserCheck,
-      requiresAdvanced: true,
+      featureKey: 'hcm',
       children: [
         { name: 'Employees', href: `/${orgSlug}/hcm/employees` },
         { name: 'Leave Requests', href: `/${orgSlug}/hcm/leave-requests` },
@@ -281,7 +299,7 @@ export default function DashboardLayout({
     {
       name: 'Field Service',
       icon: Briefcase,
-      requiresAdvanced: true,
+      featureKey: 'field-service',
       children: [
         { name: 'Work Orders', href: `/${orgSlug}/field-service/work-orders` },
       ],
@@ -289,7 +307,7 @@ export default function DashboardLayout({
     {
       name: 'Maintenance',
       icon: Wrench,
-      requiresAdvanced: true,
+      featureKey: 'maintenance',
       children: [
         { name: 'Work Orders', href: `/${orgSlug}/maintenance/work-orders` },
       ],
@@ -297,7 +315,7 @@ export default function DashboardLayout({
     {
       name: 'Reporting & BI',
       icon: BarChart3,
-      requiresAdvanced: true,
+      featureKey: 'advanced-reporting',
       children: [
         { name: 'Reports', href: `/${orgSlug}/reporting/reports` },
         { name: 'Dashboards', href: `/${orgSlug}/reporting/dashboards` },
@@ -306,7 +324,7 @@ export default function DashboardLayout({
     {
       name: 'Workflows',
       icon: CheckSquare,
-      requiresAdvanced: true,
+      featureKey: 'workflows',
       children: [
         { name: 'Approval Inbox', href: `/${orgSlug}/workflows/approvals` },
         { name: 'Workflow Designer', href: `/${orgSlug}/workflows/designer` },
@@ -315,7 +333,7 @@ export default function DashboardLayout({
     {
       name: 'Integrations',
       icon: Plug,
-      requiresAdvanced: true,
+      featureKey: 'integrations',
       children: [
         { name: 'Integrations', href: `/${orgSlug}/integrations` },
         { name: 'Webhooks', href: `/${orgSlug}/integrations/webhooks` },
@@ -324,7 +342,7 @@ export default function DashboardLayout({
     {
       name: 'Security & MDM',
       icon: Shield,
-      requiresAdvanced: true,
+      featureKey: 'security-mdm',
       children: [
         { name: 'Price Lists', href: `/${orgSlug}/mdm/price-lists` },
         { name: 'Discounts', href: `/${orgSlug}/mdm/discounts` },
@@ -334,7 +352,7 @@ export default function DashboardLayout({
     {
       name: 'Inventory Advanced',
       icon: Database,
-      requiresAdvanced: true,
+      featureKey: 'inventory-advanced',
       children: [
         { name: 'Cycle Counts', href: `/${orgSlug}/inventory/cycle-counts` },
         { name: 'Lot Tracking', href: `/${orgSlug}/inventory/lots` },
@@ -344,7 +362,7 @@ export default function DashboardLayout({
     {
       name: 'Costing',
       icon: DollarSign,
-      requiresAdvanced: true,
+      featureKey: 'costing',
       children: [
         { name: 'Standard Costs', href: `/${orgSlug}/costing/standard-costs` },
         { name: 'Cost Variances', href: `/${orgSlug}/costing/variances` },
@@ -355,7 +373,7 @@ export default function DashboardLayout({
     {
       name: 'Planning',
       icon: LineChart,
-      requiresAdvanced: true,
+      featureKey: 'planning',
       children: [
         { name: 'Demand Forecasts', href: `/${orgSlug}/planning/forecasts` },
         { name: 'Safety Stock', href: `/${orgSlug}/planning/safety-stock` },
@@ -365,7 +383,7 @@ export default function DashboardLayout({
     {
       name: 'Quality',
       icon: ClipboardCheck,
-      requiresAdvanced: true,
+      featureKey: 'quality',
       children: [
         { name: 'Inspections', href: `/${orgSlug}/quality/inspections` },
         { name: 'Quality Holds', href: `/${orgSlug}/quality/holds` },
@@ -376,7 +394,7 @@ export default function DashboardLayout({
     {
       name: 'Tax & Localization',
       icon: MapPin,
-      requiresAdvanced: true,
+      featureKey: 'tax-localization',
       children: [
         { name: 'Tax Jurisdictions', href: `/${orgSlug}/tax/jurisdictions` },
         { name: 'Tax Rules', href: `/${orgSlug}/tax/rules` },
@@ -389,10 +407,12 @@ export default function DashboardLayout({
       name: 'Onboarding',
       icon: BookOpen,
       href: '/onboarding',
+      featureKey: 'dashboard',
     },
     {
       name: 'Settings',
       icon: Settings,
+      featureKey: 'settings',
       children: [
         { name: 'General', href: `/${orgSlug}/settings` },
         { name: 'Branches', href: `/${orgSlug}/settings/branches` },
@@ -402,9 +422,17 @@ export default function DashboardLayout({
     },
   ];
 
-  const filteredNavigation = isPro
-    ? navigation.filter((item) => !item.requiresAdvanced)
-    : navigation;
+  // Filter navigation based on package tier
+  const filteredNavigation = navigation.filter((item) => 
+    hasFeature(orgPackage, item.featureKey)
+  );
+
+  // Get missing features for upgrade prompt
+  const missingFeatures = navigation.filter((item) => 
+    !hasFeature(orgPackage, item.featureKey)
+  );
+  
+  const showUpgradePrompt = missingFeatures.length > 0;
 
   function getGreeting() {
     const hour = new Date().getHours();
@@ -445,7 +473,11 @@ export default function DashboardLayout({
             </div>
             <ChevronDown className="h-4 w-4 text-slate-400" />
           </div>
-          <div className="mt-2 text-xs text-slate-300">{orgPackage === 'PRO' ? 'YourBooks Pro' : 'YourBooks Advanced'}</div>
+          <div className="mt-2">
+            <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold ${getTierBadgeColor(orgPackage)}`}>
+              {getTierDisplayName(orgPackage)}
+            </span>
+          </div>
         </div>
 
         {/* Navigation */}
@@ -476,7 +508,7 @@ export default function DashboardLayout({
             return (
               <div
                 key={item.name}
-                ref={(el) => (categoryRefs.current[item.name] = el)}
+                ref={(el) => { categoryRefs.current[item.name] = el; }}
                 className="relative"
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
@@ -505,21 +537,37 @@ export default function DashboardLayout({
               </div>
             );
           })}
-          {isPro && (
-            <div className="mt-4 rounded-md border border-blue-900 bg-blue-950 p-3 text-xs text-blue-300">
-              Unlock manufacturing, projects, automation, and advanced reporting with YourBooks Advanced.
-              <div className="mt-2 flex gap-2">
+          {showUpgradePrompt && (
+            <div className="mt-4 rounded-md border border-blue-900 bg-gradient-to-br from-blue-950 to-purple-950 p-3 text-xs">
+              <div className="flex items-center gap-2 mb-2">
+                <Lock className="w-4 h-4 text-yellow-400" />
+                <span className="font-semibold text-white">Unlock More Features</span>
+              </div>
+              <p className="text-blue-200 mb-2">
+                Upgrade to access {missingFeatures.length} more feature{missingFeatures.length > 1 ? 's' : ''} including:
+              </p>
+              <ul className="text-blue-300 space-y-1 mb-3">
+                {missingFeatures.slice(0, 3).map((feature) => (
+                  <li key={feature.name} className="flex items-center gap-1">
+                    <span className="text-yellow-400">•</span> {feature.name}
+                  </li>
+                ))}
+                {missingFeatures.length > 3 && (
+                  <li className="text-blue-400">and {missingFeatures.length - 3} more...</li>
+                )}
+              </ul>
+              <div className="flex gap-2">
                 <Link
-                  href={`/${orgSlug}/settings`}
-                  className="inline-flex items-center rounded-md bg-blue-600 px-2 py-1 font-semibold text-white hover:bg-blue-700"
+                  href="/pricing"
+                  className="inline-flex items-center justify-center rounded-md bg-gradient-to-r from-blue-500 to-purple-600 px-3 py-1.5 text-xs font-semibold text-white hover:from-blue-600 hover:to-purple-700 shadow-lg"
                 >
-                  Upgrade
+                  View Plans
                 </Link>
                 <Link
-                  href={`/${orgSlug}/reports`}
-                  className="inline-flex items-center rounded-md px-2 py-1 font-semibold text-blue-700 hover:underline"
+                  href={`/${orgSlug}/settings/billing`}
+                  className="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold text-blue-300 hover:text-blue-100"
                 >
-                  See differences
+                  Upgrade
                 </Link>
               </div>
             </div>

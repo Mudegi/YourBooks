@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/currency';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -53,6 +55,7 @@ interface AgingSummary {
 export default function AgedReceivablesPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
+  const { currency } = useOrganization();
 
   const [agingData, setAgingData] = useState<CustomerAging[]>([]);
   const [summary, setSummary] = useState<AgingSummary | null>(null);
@@ -307,22 +310,22 @@ export default function AgedReceivablesPage() {
                         </Link>
                       </td>
                       <td className="py-3 px-2 text-right text-green-600">
-                        {customer.current > 0 ? `$${customer.current.toFixed(2)}` : '-'}
+                        {customer.current > 0 ? formatCurrency(customer.current, currency) : '-'}
                       </td>
                       <td className="py-3 px-2 text-right text-yellow-600">
-                        {customer.days1to30 > 0 ? `$${customer.days1to30.toFixed(2)}` : '-'}
+                        {customer.days1to30 > 0 ? formatCurrency(customer.days1to30, currency) : '-'}
                       </td>
                       <td className="py-3 px-2 text-right text-orange-600">
-                        {customer.days31to60 > 0 ? `$${customer.days31to60.toFixed(2)}` : '-'}
+                        {customer.days31to60 > 0 ? formatCurrency(customer.days31to60, currency) : '-'}
                       </td>
                       <td className="py-3 px-2 text-right text-red-600">
-                        {customer.days61to90 > 0 ? `$${customer.days61to90.toFixed(2)}` : '-'}
+                        {customer.days61to90 > 0 ? formatCurrency(customer.days61to90, currency) : '-'}
                       </td>
                       <td className="py-3 px-2 text-right text-red-800 font-medium">
-                        {customer.days90plus > 0 ? `$${customer.days90plus.toFixed(2)}` : '-'}
+                        {customer.days90plus > 0 ? formatCurrency(customer.days90plus, currency) : '-'}
                       </td>
                       <td className="py-3 px-2 text-right font-bold">
-                        ${customer.totalOutstanding.toFixed(2)}
+                        {formatCurrency(customer.totalOutstanding, currency)}
                       </td>
                     </tr>
                   ))}
@@ -331,22 +334,22 @@ export default function AgedReceivablesPage() {
                     <tr className="border-t-2 border-gray-300 bg-gray-50 font-bold">
                       <td className="py-3 px-2">TOTAL</td>
                       <td className="py-3 px-2 text-right text-green-600">
-                        ${summary.current.toFixed(2)}
+                        {formatCurrency(summary.current, currency)}
                       </td>
                       <td className="py-3 px-2 text-right text-yellow-600">
-                        ${summary.days1to30.toFixed(2)}
+                        {formatCurrency(summary.days1to30, currency)}
                       </td>
                       <td className="py-3 px-2 text-right text-orange-600">
-                        ${summary.days31to60.toFixed(2)}
+                        {formatCurrency(summary.days31to60, currency)}
                       </td>
                       <td className="py-3 px-2 text-right text-red-600">
-                        ${summary.days61to90.toFixed(2)}
+                        {formatCurrency(summary.days61to90, currency)}
                       </td>
                       <td className="py-3 px-2 text-right text-red-800">
-                        ${summary.days90plus.toFixed(2)}
+                        {formatCurrency(summary.days90plus, currency)}
                       </td>
                       <td className="py-3 px-2 text-right text-blue-600">
-                        ${summary.totalOutstanding.toFixed(2)}
+                        {formatCurrency(summary.totalOutstanding, currency)}
                       </td>
                     </tr>
                   )}
@@ -450,7 +453,7 @@ export default function AgedReceivablesPage() {
         <Alert variant="warning">
           <div className="font-semibold">Collection Priority Alert</div>
           <p className="text-sm mt-1">
-            You have ${(summary.days61to90 + summary.days90plus).toFixed(2)} in receivables over 60 days old.
+            You have {formatCurrency(summary.days61to90 + summary.days90plus, currency)} in receivables over 60 days old.
             Consider prioritizing collection efforts for these overdue accounts.
           </p>
         </Alert>

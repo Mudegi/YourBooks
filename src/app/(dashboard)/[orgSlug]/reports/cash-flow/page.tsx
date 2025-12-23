@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/currency';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,6 +36,7 @@ interface CashFlowData {
 export default function CashFlowPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
+  const { currency } = useOrganization();
 
   const [cashFlow, setCashFlow] = useState<CashFlowData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -147,7 +150,7 @@ export default function CashFlowPage() {
                   <tr>
                     <td className="py-1 pl-4">Net Income</td>
                     <td className="py-1 text-right pr-4">
-                      ${cashFlow.operatingActivities.netIncome.toFixed(2)}
+                      {formatCurrency(cashFlow.operatingActivities.netIncome, currency)}
                     </td>
                   </tr>
                   {cashFlow.operatingActivities.adjustments.length > 0 && (
@@ -162,7 +165,7 @@ export default function CashFlowPage() {
                           <td className="py-1 pl-8">{adj.description}</td>
                           <td className="py-1 text-right pr-4">
                             <span className={adj.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
-                              {adj.amount >= 0 ? '+' : ''}${adj.amount.toFixed(2)}
+                              {adj.amount >= 0 ? '+' : ''}{formatCurrency(adj.amount, currency)}
                             </span>
                           </td>
                         </tr>
@@ -179,7 +182,7 @@ export default function CashFlowPage() {
                             : 'text-red-600'
                         }
                       >
-                        ${cashFlow.operatingActivities.totalOperating.toFixed(2)}
+                        {formatCurrency(cashFlow.operatingActivities.totalOperating, currency)}
                       </span>
                     </td>
                   </tr>
@@ -200,7 +203,7 @@ export default function CashFlowPage() {
                         <td className="py-1 pl-4">{activity.description}</td>
                         <td className="py-1 text-right pr-4">
                           <span className={activity.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {activity.amount >= 0 ? '+' : ''}${activity.amount.toFixed(2)}
+                            {activity.amount >= 0 ? '+' : ''}{formatCurrency(activity.amount, currency)}
                           </span>
                         </td>
                       </tr>
@@ -215,7 +218,7 @@ export default function CashFlowPage() {
                               : 'text-red-600'
                           }
                         >
-                          ${cashFlow.investingActivities.totalInvesting.toFixed(2)}
+                          {formatCurrency(cashFlow.investingActivities.totalInvesting, currency)}
                         </span>
                       </td>
                     </tr>
@@ -239,7 +242,7 @@ export default function CashFlowPage() {
                         <td className="py-1 pl-4">{activity.description}</td>
                         <td className="py-1 text-right pr-4">
                           <span className={activity.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {activity.amount >= 0 ? '+' : ''}${activity.amount.toFixed(2)}
+                            {activity.amount >= 0 ? '+' : ''}{formatCurrency(activity.amount, currency)}
                           </span>
                         </td>
                       </tr>
@@ -254,7 +257,7 @@ export default function CashFlowPage() {
                               : 'text-red-600'
                           }
                         >
-                          ${cashFlow.financingActivities.totalFinancing.toFixed(2)}
+                          {formatCurrency(cashFlow.financingActivities.totalFinancing, currency)}
                         </span>
                       </td>
                     </tr>
@@ -279,7 +282,7 @@ export default function CashFlowPage() {
                             : 'text-red-600'
                         }
                       >
-                        ${cashFlow.netCashFlow.toFixed(2)}
+                        {formatCurrency(cashFlow.netCashFlow, currency)}
                       </span>
                     </td>
                   </tr>
@@ -295,7 +298,7 @@ export default function CashFlowPage() {
                   <tr className="text-sm">
                     <td className="py-2">Beginning Cash Balance</td>
                     <td className="py-2 text-right font-semibold">
-                      ${cashFlow.beginningCash.toFixed(2)}
+                      {formatCurrency(cashFlow.beginningCash, currency)}
                     </td>
                   </tr>
                   <tr className="text-sm">
@@ -308,23 +311,23 @@ export default function CashFlowPage() {
                             : 'text-red-600'
                         }
                       >
-                        {cashFlow.netCashFlow >= 0 ? '+' : ''}${cashFlow.netCashFlow.toFixed(2)}
+                        {cashFlow.netCashFlow >= 0 ? '+' : ''}{formatCurrency(cashFlow.netCashFlow, currency)}
                       </span>
                     </td>
                   </tr>
                   <tr className="border-t-2 border-blue-300 text-xl font-bold">
                     <td className="py-3">Ending Cash Balance</td>
                     <td className="py-3 text-right text-blue-600">
-                      ${cashFlow.endingCash.toFixed(2)}
+                      {formatCurrency(cashFlow.endingCash, currency)}
                     </td>
                   </tr>
                 </tbody>
               </table>
               <div className="mt-4 text-xs text-gray-600 text-center">
                 <p>
-                  ${cashFlow.beginningCash.toFixed(2)} +{' '}
-                  {cashFlow.netCashFlow >= 0 ? '+' : ''}${cashFlow.netCashFlow.toFixed(2)} ={' '}
-                  <span className="font-bold">${cashFlow.endingCash.toFixed(2)}</span>
+                  {formatCurrency(cashFlow.beginningCash, currency)} +{' '}
+                  {cashFlow.netCashFlow >= 0 ? '+' : ''}{formatCurrency(cashFlow.netCashFlow, currency)} ={' '}
+                  <span className="font-bold">{formatCurrency(cashFlow.endingCash, currency)}</span>
                 </p>
               </div>
             </div>
@@ -334,19 +337,19 @@ export default function CashFlowPage() {
               <div className="text-center p-4 bg-green-50 rounded">
                 <p className="text-sm text-gray-600">Operating Cash Flow</p>
                 <p className="text-xl font-bold text-green-600">
-                  ${cashFlow.operatingActivities.totalOperating.toFixed(2)}
+                  {formatCurrency(cashFlow.operatingActivities.totalOperating, currency)}
                 </p>
               </div>
               <div className="text-center p-4 bg-blue-50 rounded">
                 <p className="text-sm text-gray-600">Investing Cash Flow</p>
                 <p className="text-xl font-bold text-blue-600">
-                  ${cashFlow.investingActivities.totalInvesting.toFixed(2)}
+                  {formatCurrency(cashFlow.investingActivities.totalInvesting, currency)}
                 </p>
               </div>
               <div className="text-center p-4 bg-purple-50 rounded">
                 <p className="text-sm text-gray-600">Financing Cash Flow</p>
                 <p className="text-xl font-bold text-purple-600">
-                  ${cashFlow.financingActivities.totalFinancing.toFixed(2)}
+                  {formatCurrency(cashFlow.financingActivities.totalFinancing, currency)}
                 </p>
               </div>
             </div>

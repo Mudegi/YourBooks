@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Alert } from '@/components/ui/alert';
 import Loading from '@/components/ui/loading';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/utils';
 
 interface Customer {
   id: string;
@@ -54,6 +56,7 @@ export default function CustomerPaymentPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { currency } = useOrganization();
 
   const [formData, setFormData] = useState({
     customerId: preselectedCustomerId || '',
@@ -383,7 +386,7 @@ export default function CustomerPaymentPage() {
                   <option value="">Select an invoice...</option>
                   {availableInvoices.map((invoice) => (
                     <option key={invoice.id} value={invoice.id}>
-                      {invoice.invoiceNumber} - ${invoice.amountDue.toFixed(2)} due
+                      {invoice.invoiceNumber} - {formatCurrency(invoice.amountDue, currency)} due
                     </option>
                   ))}
                 </Select>
@@ -407,8 +410,7 @@ export default function CustomerPaymentPage() {
                       <div>
                         <p className="font-medium">{allocation.invoiceNumber}</p>
                         <p className="text-sm text-gray-600">
-                          Total: ${allocation.totalAmount.toFixed(2)} | Due: $
-                          {allocation.amountDue.toFixed(2)}
+                          Total: {formatCurrency(allocation.totalAmount, currency)} | Due: {formatCurrency(allocation.amountDue, currency)}
                         </p>
                       </div>
                       <Button
@@ -465,7 +467,7 @@ export default function CustomerPaymentPage() {
           <CardContent className="pt-6">
             <div className="flex justify-between text-xl font-bold">
               <span>Total Payment:</span>
-              <span className="text-green-600">${formData.amount.toFixed(2)}</span>
+              <span className="text-green-600">{formatCurrency(formData.amount, currency)}</span>
             </div>
           </CardContent>
         </Card>

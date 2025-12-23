@@ -57,6 +57,9 @@ export async function GET(request: NextRequest) {
           slug: true,
           baseCurrency: true,
           package: true,
+          onboardingCompleted: true,
+          legalName: true,
+          homeCountry: true,
         },
       });
     }

@@ -24,6 +24,8 @@ model Organization {
   email                   String?
   logo                    String?
   isActive                Boolean                  @default(true)
+  onboardingCompleted     Boolean                  @default(false)
+  industry                String?
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
   activities              Activity[]
@@ -120,10 +122,30 @@ model Organization {
   workOrders              WorkOrder[]
   roles                   Role[]
   invites                 OrganizationInvite[]
+  organizationUserRoles   OrganizationUserRole[]
 
   @@index([slug])
   @@index([homeCountry])
   @@index([compliancePack])
+  unitsOfMeasure      UnitOfMeasure[]
+}
+
+model UnitOfMeasure {
+  id              String        @id @default(cuid())
+  organizationId  String
+  code            String
+  name            String
+  abbreviation    String
+  category        String?       // e.g., "length", "weight", "volume", "quantity"
+  displayOrder    Int           @default(0)
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  products        Product[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
 }
 
 model Branch {
@@ -327,6 +349,7 @@ model User {
   createdReports             Report[]
   timeEntryApprovals         TimeEntry[]
   createdTransactions        Transaction[]           @relation("TransactionCreator")
+  sentInvites                OrganizationInvite[]
 
   @@index([email])
 }
@@ -361,6 +384,7 @@ model Role {
   organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   permissions      RolePermission[]
   members          OrganizationUserRole[]
+  invites          OrganizationInvite[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -443,6 +467,7 @@ model ChartOfAccount {
   creditNoteItems             CreditNoteItem[]
   debitNoteItems              DebitNoteItem[]
   ledgerEntries               LedgerEntry[]
+  billItems                   BillItem[]
 
   @@unique([organizationId, code])
   @@index([organizationId, accountType])
@@ -479,6 +504,7 @@ model Transaction {
   ledgerEntries       LedgerEntry[]
   payrollRun          PayrollRun?
   recurringExecutions RecurringExecution[]
+  bills               Bill[]
   branch              Branch?              @relation(fields: [branchId], references: [id])
   createdBy           User                 @relation("TransactionCreator", fields: [createdById], references: [id])
   organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -514,25 +540,28 @@ model LedgerEntry {
 }
 
 model Customer {
-  id                    String                 @id @default(cuid())
-  organizationId        String
-  customerNumber        String
-  companyName           String?
-  firstName             String
-  lastName              String
-  email                 String
-  phone                 String?
-  website               String?
-  taxIdNumber           String?
-  paymentTerms          Int                    @default(30)
-  creditLimit           Decimal?               @db.Decimal(19, 4)
-  billingAddress        Json?
-  shippingAddress       Json?
-  notes                 String?
-  isActive              Boolean                @default(true)
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  branchId              String?
+  id                       String                 @id @default(cuid())
+  organizationId           String
+  customerNumber           String
+  companyName              String?
+  firstName                String
+  lastName                 String
+  email                    String?
+  phone                    String?
+  website                  String?
+  taxIdNumber              String?
+  paymentTerms             Int                    @default(30)
+  creditLimit              Decimal?               @db.Decimal(19, 4)
+  billingAddress           Json?
+  shippingAddress          Json?
+  notes                    String?
+  isActive                 Boolean                @default(true)
+  region                   String?
+  taxCategory              String?
+  defaultRevenueAccountId  String?
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  branchId                 String?
   creditNotes           CreditNote[]
   Branch                Branch?                @relation(fields: [branchId], references: [id])
   organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -730,6 +759,7 @@ model Bill {
   notes               String?
   attachments         String[]
   transactionId       String?
+  transaction         Transaction?       @relation(fields: [transactionId], references: [id])
   whtApplicable       Boolean              @default(false)
   whtAmount           Decimal              @default(0) @db.Decimal(19, 4)
   whtRate             Decimal              @default(0) @db.Decimal(5, 2)
@@ -756,6 +786,7 @@ model BillItem {
   id            String   @id @default(cuid())
   billId        String
   productId     String?
+  accountId     String?
   description   String
   quantity      Decimal  @db.Decimal(12, 4)
   unitPrice     Decimal  @db.Decimal(19, 4)
@@ -768,10 +799,12 @@ model BillItem {
   claimInputTax Boolean  @default(true)
   bill          Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
   product       Product? @relation(fields: [productId], references: [id])
+  account       ChartOfAccount? @relation(fields: [accountId], references: [id])
   taxRateConfig TaxRate? @relation(fields: [taxRateId], references: [id])
 
   @@index([billId])
   @@index([taxRateId])
+  @@index([accountId])
 }
 
 model Payment {
@@ -891,7 +924,7 @@ model Product {
   description            String?
   productType            ProductType
   category               String?
-  unitOfMeasure          String                     @default("unit")
+  unitOfMeasureId        String?
   purchasePrice          Decimal                    @default(0) @db.Decimal(19, 4)
   sellingPrice           Decimal                    @default(0) @db.Decimal(19, 4)
   trackInventory         Boolean                    @default(true)
@@ -929,6 +962,7 @@ model Product {
   priceListItems         PriceListItem[]
   Branch                 Branch?                    @relation(fields: [branchId], references: [id])
   organization           Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  unitOfMeasure          UnitOfMeasure?             @relation(fields: [unitOfMeasureId], references: [id])
   productPlannings       ProductPlanning[]
   productVariant         ProductVariant?
   poItems                PurchaseOrderItem[]
@@ -1182,14 +1216,14 @@ model TransferOrder {
 }
 
 model TransferOrderLine {
-  id              String        @id @default(cuid())
-  transferOrderId String
-  productId       String
-  quantity        Decimal       @db.Decimal(12, 4)
-  unitOfMeasure   String        @default("unit")
-  lotId           String?
-  notes           String?
-  lot             InventoryLot? @relation(fields: [lotId], references: [id])
+  id                String        @id @default(cuid())
+  transferOrderId   String
+  productId         String
+  quantity          Decimal       @db.Decimal(12, 4)
+  unitOfMeasureId   String?
+  lotId             String?
+  notes             String?
+  lot               InventoryLot? @relation(fields: [lotId], references: [id])
   product         Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
   transferOrder   TransferOrder @relation(fields: [transferOrderId], references: [id], onDelete: Cascade)
 
@@ -3842,7 +3876,7 @@ model EFRISExcisableList {
 }
 
 enum PackageTier {
-  PRO
+  PROFESSIONAL
   ADVANCED
 }
 
@@ -4717,4 +4751,120 @@ enum OverheadAllocationMethod {
   MATERIAL_PERCENTAGE
   LABOR_PERCENTAGE
   PER_UNIT
+}
+
+// ============================================
+// LANDING PAGE & SYSTEM SETTINGS
+// ============================================
+
+model SystemSettings {
+  id                String   @id @default(cuid())
+  // Company Information
+  companyName       String   @default("YourBooks ERP")
+  companyTagline    String   @default("Professional Accounting Made Simple")
+  companyDescription String?
+  companyEmail      String?
+  companyPhone      String?
+  supportEmail      String?
+  // Hero Section
+  heroTitle         String   @default("Complete ERP Solution for Modern Businesses")
+  heroSubtitle      String   @default("Enterprise-grade accounting system with double-entry bookkeeping, multi-tenant architecture, and real-time financial reporting.")
+  heroCTA1Text      String   @default("Access Dashboard")
+  heroCTA1Link      String   @default("/login")
+  heroCTA2Text      String   @default("Watch Demo")
+  heroCTA2Link      String   @default("/login")
+  // Features
+  showModules       Boolean  @default(true)
+  showStats         Boolean  @default(true)
+  showDemoCredentials Boolean @default(true)
+  // Contact Info
+  address           String?
+  city              String?
+  state             String?
+  zipCode           String?
+  country           String?
+  // Branding
+  logo              String?
+  favicon           String?
+  primaryColor      String   @default("#2563eb")
+  secondaryColor    String   @default("#4f46e5")
+  // Meta
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  socialMediaLinks  SocialMediaLink[]
+  pricingPlans      PricingPlan[]
+  featureHighlights FeatureHighlight[]
+  testimonials      Testimonial[]
+}
+
+model SocialMediaLink {
+  id              String          @id @default(cuid())
+  platform        String          // "github", "twitter", "linkedin", "facebook", "instagram", etc.
+  url             String
+  icon            String?         // Optional custom icon path
+  displayOrder    Int             @default(0)
+  isActive        Boolean         @default(true)
+  systemSettingsId String
+  systemSettings  SystemSettings  @relation(fields: [systemSettingsId], references: [id], onDelete: Cascade)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([systemSettingsId])
+}
+
+model PricingPlan {
+  id              String          @id @default(cuid())
+  name            String          // "Starter", "Professional", "Enterprise"
+  description     String?
+  price           Decimal         @db.Decimal(10, 2)
+  currency        String          @default("USD")
+  billingPeriod   String          @default("MONTHLY") // "MONTHLY", "YEARLY"
+  features        String[]        // Array of feature descriptions
+  isPopular       Boolean         @default(false)
+  displayOrder    Int             @default(0)
+  isActive        Boolean         @default(true)
+  ctaText         String          @default("Get Started")
+  ctaLink         String          @default("/register")
+  systemSettingsId String
+  systemSettings  SystemSettings  @relation(fields: [systemSettingsId], references: [id], onDelete: Cascade)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([systemSettingsId])
+}
+
+model FeatureHighlight {
+  id              String          @id @default(cuid())
+  title           String
+  description     String
+  icon            String?         // Icon name or path
+  color           String          @default("blue") // Color theme
+  link            String?         // Optional link for "Learn more"
+  displayOrder    Int             @default(0)
+  isActive        Boolean         @default(true)
+  systemSettingsId String
+  systemSettings  SystemSettings  @relation(fields: [systemSettingsId], references: [id], onDelete: Cascade)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([systemSettingsId])
+}
+
+model Testimonial {
+  id              String          @id @default(cuid())
+  customerName    String
+  customerRole    String?
+  companyName     String?
+  content         String
+  rating          Int?            @default(5)
+  avatar          String?
+  displayOrder    Int             @default(0)
+  isActive        Boolean         @default(true)
+  systemSettingsId String
+  systemSettings  SystemSettings  @relation(fields: [systemSettingsId], references: [id], onDelete: Cascade)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([systemSettingsId])
 }

@@ -1,6 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { DoubleEntryService } from '../accounting/double-entry.service';
 
+const getCustomerDisplayName = (customer: { name?: string | null; firstName?: string | null; lastName?: string | null; companyName?: string | null }) => {
+  const personalName = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
+  return (customer.name || customer.companyName || personalName || 'Customer').trim();
+};
+
 interface RecordCustomerPaymentData {
   customerId: string;
   paymentDate: Date;
@@ -60,6 +65,8 @@ export class PaymentService {
     if (!customer) {
       throw new Error('Customer not found');
     }
+
+    const customerName = getCustomerDisplayName(customer);
 
     // Validate bank account exists
     const bankAccount = await prisma.account.findFirst({
@@ -130,14 +137,14 @@ export class PaymentService {
         accountId: data.bankAccountId,
         debit: data.amount,
         credit: 0,
-        description: `Payment from ${customer.name}`,
+        description: `Payment from ${customerName}`,
       },
       // CR: Accounts Receivable
       {
         accountId: arAccount.id,
         debit: 0,
         credit: data.amount,
-        description: `Payment from ${customer.name}`,
+        description: `Payment from ${customerName}`,
       },
     ];
 
@@ -147,7 +154,7 @@ export class PaymentService {
       const transaction = await DoubleEntryService.createTransaction(
         {
           transactionDate: data.paymentDate,
-          description: `Customer Payment - ${customer.name}`,
+          description: `Customer Payment - ${customerName}`,
           referenceType: 'CUSTOMER_PAYMENT',
           referenceId: '', // Will be updated with payment ID
           entries,

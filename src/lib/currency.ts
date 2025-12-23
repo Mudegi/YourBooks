@@ -21,6 +21,15 @@ export const CURRENCIES: Record<string, CurrencyConfig> = {
   CHF: { code: 'CHF', symbol: 'CHF', name: 'Swiss Franc', decimals: 2 },
   CNY: { code: 'CNY', symbol: '¥', name: 'Chinese Yuan', decimals: 2 },
   INR: { code: 'INR', symbol: '₹', name: 'Indian Rupee', decimals: 2 },
+  // African Currencies
+  UGX: { code: 'UGX', symbol: 'UGX', name: 'Ugandan Shilling', decimals: 0 },
+  KES: { code: 'KES', symbol: 'KSh', name: 'Kenyan Shilling', decimals: 2 },
+  TZS: { code: 'TZS', symbol: 'TSh', name: 'Tanzanian Shilling', decimals: 2 },
+  RWF: { code: 'RWF', symbol: 'RF', name: 'Rwandan Franc', decimals: 0 },
+  ZAR: { code: 'ZAR', symbol: 'R', name: 'South African Rand', decimals: 2 },
+  NGN: { code: 'NGN', symbol: '₦', name: 'Nigerian Naira', decimals: 2 },
+  GHS: { code: 'GHS', symbol: 'GH₵', name: 'Ghanaian Cedi', decimals: 2 },
+  ETB: { code: 'ETB', symbol: 'Br', name: 'Ethiopian Birr', decimals: 2 },
 };
 
 /**

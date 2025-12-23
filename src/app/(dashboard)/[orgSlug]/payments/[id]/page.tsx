@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import Loading from '@/components/ui/loading';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/utils';
 
 interface Account {
   id: string;
@@ -77,6 +79,7 @@ export default function PaymentDetailsPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
   const paymentId = params.id as string;
+  const { currency } = useOrganization();
 
   const [payment, setPayment] = useState<Payment | null>(null);
   const [loading, setLoading] = useState(true);
@@ -200,7 +203,7 @@ export default function PaymentDetailsPage() {
                   isCustomerPayment ? 'text-green-600' : 'text-red-600'
                 }`}
               >
-                ${payment.amount.toFixed(2)}
+                {formatCurrency(payment.amount, currency)}
               </p>
             </div>
 
@@ -297,10 +300,10 @@ export default function PaymentDetailsPage() {
                       </td>
                       <td className="py-3">{party?.name}</td>
                       <td className="py-3 text-right">
-                        ${document?.totalAmount.toFixed(2)}
+                        {document ? formatCurrency(document.totalAmount, currency) : '—'}
                       </td>
                       <td className="py-3 text-right font-semibold text-green-600">
-                        ${allocation.amount.toFixed(2)}
+                        {formatCurrency(allocation.amount, currency)}
                       </td>
                     </tr>
                   );
@@ -312,7 +315,7 @@ export default function PaymentDetailsPage() {
                     Total Payment:
                   </td>
                   <td className="py-3 text-right text-green-600">
-                    ${payment.amount.toFixed(2)}
+                    {formatCurrency(payment.amount, currency)}
                   </td>
                 </tr>
               </tfoot>
@@ -381,10 +384,10 @@ export default function PaymentDetailsPage() {
                           {entry.description}
                         </td>
                         <td className="py-2 text-right text-green-600">
-                          {entry.debit > 0 ? `$${entry.debit.toFixed(2)}` : '—'}
+                          {entry.debit > 0 ? formatCurrency(entry.debit, currency) : '—'}
                         </td>
                         <td className="py-2 text-right text-red-600">
-                          {entry.credit > 0 ? `$${entry.credit.toFixed(2)}` : '—'}
+                          {entry.credit > 0 ? formatCurrency(entry.credit, currency) : '—'}
                         </td>
                       </tr>
                     ))}
@@ -395,16 +398,16 @@ export default function PaymentDetailsPage() {
                         Total
                       </td>
                       <td className="py-2 text-right text-green-600">
-                        $
-                        {payment.transaction.entries
-                          .reduce((sum, e) => sum + e.debit, 0)
-                          .toFixed(2)}
+                        {formatCurrency(
+                          payment.transaction.entries.reduce((sum, e) => sum + e.debit, 0),
+                          currency
+                        )}
                       </td>
                       <td className="py-2 text-right text-red-600">
-                        $
-                        {payment.transaction.entries
-                          .reduce((sum, e) => sum + e.credit, 0)
-                          .toFixed(2)}
+                        {formatCurrency(
+                          payment.transaction.entries.reduce((sum, e) => sum + e.credit, 0),
+                          currency
+                        )}
                       </td>
                     </tr>
                   </tfoot>

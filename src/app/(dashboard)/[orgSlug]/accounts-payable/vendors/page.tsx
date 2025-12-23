@@ -11,6 +11,8 @@ import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
 import { Alert } from '@/components/ui/alert';
 import Loading from '@/components/ui/loading';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/utils';
 
 interface Vendor {
   id: string;
@@ -33,6 +35,7 @@ interface Vendor {
 export default function VendorsPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
+  const { currency } = useOrganization();
 
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [filteredVendors, setFilteredVendors] = useState<Vendor[]>([]);
@@ -180,7 +183,7 @@ export default function VendorsPage() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-red-600">
-              ${totalOwed.toFixed(2)}
+              {formatCurrency(totalOwed, currency)}
             </p>
             <p className="text-xs text-gray-500">unpaid bills</p>
           </CardContent>
@@ -194,7 +197,7 @@ export default function VendorsPage() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-green-600">
-              ${totalPaid.toFixed(2)}
+              {formatCurrency(totalPaid, currency)}
             </p>
             <p className="text-xs text-gray-500">paid bills</p>
           </CardContent>
@@ -307,7 +310,7 @@ export default function VendorsPage() {
                     <div className="flex justify-between">
                       <span className="text-gray-600">Owed:</span>
                       <span className="font-semibold text-red-600">
-                        ${vendor.totalOwed.toFixed(2)}
+                        {formatCurrency(vendor.totalOwed, currency)}
                       </span>
                     </div>
                     <div className="flex justify-between mt-1">

@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Alert } from '@/components/ui/alert';
 import Loading from '@/components/ui/loading';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/utils';
 
 interface Vendor {
   id: string;
@@ -54,6 +56,7 @@ export default function VendorPaymentPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { currency } = useOrganization();
 
   const [formData, setFormData] = useState({
     vendorId: preselectedVendorId || '',
@@ -383,7 +386,7 @@ export default function VendorPaymentPage() {
                   <option value="">Select a bill...</option>
                   {availableBills.map((bill) => (
                     <option key={bill.id} value={bill.id}>
-                      {bill.billNumber} - ${bill.amountDue.toFixed(2)} due
+                      {bill.billNumber} - {formatCurrency(bill.amountDue, currency)} due
                     </option>
                   ))}
                 </Select>
@@ -407,8 +410,7 @@ export default function VendorPaymentPage() {
                       <div>
                         <p className="font-medium">{allocation.billNumber}</p>
                         <p className="text-sm text-gray-600">
-                          Total: ${allocation.totalAmount.toFixed(2)} | Due: $
-                          {allocation.amountDue.toFixed(2)}
+                          Total: {formatCurrency(allocation.totalAmount, currency)} | Due: {formatCurrency(allocation.amountDue, currency)}
                         </p>
                       </div>
                       <Button
@@ -465,7 +467,7 @@ export default function VendorPaymentPage() {
           <CardContent className="pt-6">
             <div className="flex justify-between text-xl font-bold">
               <span>Total Payment:</span>
-              <span className="text-red-600">${formData.amount.toFixed(2)}</span>
+              <span className="text-red-600">{formatCurrency(formData.amount, currency)}</span>
             </div>
           </CardContent>
         </Card>

@@ -94,18 +94,18 @@ export const customerSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
   companyName: z.string().optional(),
-  email: z.string().email('Invalid email address'),
+  email: z.string().email('Invalid email address').optional().or(z.literal('')),
   phone: z.string().optional(),
   website: z.string().url().optional().or(z.literal('')),
   taxIdNumber: z.string().optional(),
-  paymentTerms: z.number().int().min(0).default(30),
-  creditLimit: z.number().positive().optional(),
+  paymentTerms: z.coerce.number().int().min(0).default(30),
+  creditLimit: z.coerce.number().positive().optional(),
   billingAddress: z
     .object({
       street: z.string(),
       city: z.string(),
-      state: z.string(),
-      zip: z.string(),
+      state: z.string().optional(),
+      zip: z.string().optional(),
       country: z.string(),
     })
     .optional(),
@@ -113,12 +113,17 @@ export const customerSchema = z.object({
     .object({
       street: z.string(),
       city: z.string(),
-      state: z.string(),
-      zip: z.string(),
+      state: z.string().optional(),
+      zip: z.string().optional(),
       country: z.string(),
     })
     .optional(),
   notes: z.string().optional(),
+  isActive: z.boolean().default(true),
+  region: z.string().optional(),
+  taxCategory: z.enum(['STANDARD', 'ZERO_RATED', 'EXEMPT', 'NON_TAXABLE']).optional(),
+  defaultRevenueAccountId: z.string().optional(),
+  openingBalance: z.coerce.number().optional(),
 });
 
 export const invoiceItemSchema = z.object({
@@ -194,7 +199,7 @@ export const productSchema = z.object({
   description: z.string().optional(),
   productType: z.enum(['INVENTORY', 'SERVICE', 'NON_INVENTORY']),
   category: z.string().optional(),
-  unitOfMeasure: z.string().default('unit'),
+  unitOfMeasureId: z.string().optional(),
   purchasePrice: z.number().min(0).default(0),
   sellingPrice: z.number().min(0).default(0),
   trackInventory: z.boolean().default(true),

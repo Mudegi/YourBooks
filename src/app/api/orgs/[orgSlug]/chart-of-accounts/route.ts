@@ -32,7 +32,7 @@ export async function GET(
     };
 
     if (type && type !== 'ALL') {
-      where.type = type;
+      where.accountType = type;
     }
 
     if (search) {
@@ -50,7 +50,7 @@ export async function GET(
     const accounts = await prisma.chartOfAccount.findMany({
       where,
       orderBy: [
-        { type: 'asc' },
+        { accountType: 'asc' },
         { code: 'asc' },
       ],
       include: {

@@ -2,17 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { BillService } from '@/services/accounts-payable/bill.service';
 import { z } from 'zod';
+import { BillStatus } from '@prisma/client';
 
 // Zod schema for bill item
 const billItemSchema = z.object({
   description: z.string().min(1, 'Description is required'),
+  productId: z.string().optional(),
   quantity: z.number().positive('Quantity must be positive'),
   unitPrice: z.number().min(0, 'Unit price cannot be negative'),
   accountId: z.string().min(1, 'Account is required'),
   taxAmount: z.number().min(0, 'Tax amount cannot be negative').default(0),
+  taxRate: z.number().optional().default(0),
+  taxCategory: z.enum(['STANDARD', 'ZERO', 'EXEMPT']).optional().default('STANDARD'),
+  claimInputTax: z.boolean().optional().default(true),
 });
 
-// Zod schema for bill creation
+// Zod schema for bill creation (with URA fields)
 const createBillSchema = z.object({
   vendorId: z.string().min(1, 'Vendor is required'),
   billDate: z.string().transform((str) => new Date(str)),
@@ -21,6 +26,12 @@ const createBillSchema = z.object({
   items: z.array(billItemSchema).min(1, 'At least one item is required'),
   notes: z.string().optional(),
   referenceNumber: z.string().optional(),
+  vendorInvoiceNo: z.string().optional(),
+  taxCategory: z.enum(['STANDARD', 'ZERO', 'EXEMPT']).optional(),
+  whtApplicable: z.boolean().optional(),
+  whtRate: z.number().min(0).max(100).optional(),
+  whtAmount: z.number().min(0).optional(),
+  efrisReceiptNo: z.string().optional(),
 });
 
 /**
@@ -32,16 +43,30 @@ export async function GET(
   { params }: { params: { orgSlug: string } }
 ) {
   try {
-    const organizationId = request.headers.get('x-organization-id');
+    let organizationId = request.headers.get('x-organization-id');
 
+    // Fallback: resolve organization by slug if header is missing
     if (!organizationId) {
-      return NextResponse.json(
-        { error: 'Organization not found' },
-        { status: 404 }
-      );
+      const org = await prisma.organization.findUnique({ where: { slug: params.orgSlug } });
+      if (!org) {
+        return NextResponse.json(
+          { error: 'Organization not found' },
+          { status: 404 }
+        );
+      }
+      organizationId = org.id;
     }
 
     const { searchParams } = new URL(request.url);
+    const nextReference = searchParams.get('nextReference') === 'true';
+
+    // Fast path: return next reference number
+    if (nextReference) {
+      const count = await prisma.bill.count({ where: { organizationId } });
+      const nextNumber = (count + 1).toString().padStart(5, '0');
+      return NextResponse.json({ nextReference: nextNumber });
+    }
+
     const status = searchParams.get('status');
     const vendorId = searchParams.get('vendorId');
     const startDate = searchParams.get('startDate');
@@ -52,8 +77,26 @@ export async function GET(
       organizationId,
     };
 
-    if (status) {
-      where.status = status;
+    const normalizeFilterStatus = (value: string | null) => {
+      if (!value) return null;
+      switch (value.toUpperCase()) {
+        case 'SENT':
+          return BillStatus.SUBMITTED;
+        case 'PAID':
+          return BillStatus.PAID;
+        case 'OVERDUE':
+          return BillStatus.OVERDUE;
+        case 'CANCELLED':
+          return BillStatus.CANCELLED;
+        case 'DRAFT':
+        default:
+          return BillStatus.DRAFT;
+      }
+    };
+
+    const dbStatusFilter = normalizeFilterStatus(status);
+    if (dbStatusFilter) {
+      where.status = dbStatusFilter;
     }
 
     if (vendorId) {
@@ -78,14 +121,7 @@ export async function GET(
         vendor: {
           select: {
             id: true,
-            name: true,
-          },
-        },
-        transaction: {
-          select: {
-            id: true,
-            transactionNumber: true,
-            status: true,
+            companyName: true,
           },
         },
         _count: {
@@ -94,28 +130,47 @@ export async function GET(
       },
     });
 
-    // Calculate summary statistics
+    // Normalize Prisma result to UI-friendly shape
+    const mapStatusToUi = (s: BillStatus | string) => {
+      if (String(s) === BillStatus.SUBMITTED) return 'SENT';
+      return String(s);
+    };
+
+    const normalizedBills = bills.map((b: any) => ({
+      id: b.id,
+      billNumber: b.billNumber,
+      billDate: b.billDate,
+      dueDate: b.dueDate,
+      subtotalAmount: Number(b.subtotal),
+      taxAmount: Number(b.taxAmount),
+      totalAmount: Number(b.total),
+      status: mapStatusToUi(b.status),
+      vendor: { id: b.vendor.id, name: b.vendor.companyName },
+      _count: b._count,
+    }));
+
+    // Calculate summary statistics based on normalized bills
     const stats = {
-      total: bills.length,
-      outstanding: bills.filter(
-        (b) => b.status === 'SENT' || b.status === 'OVERDUE'
+      total: normalizedBills.length,
+      outstanding: normalizedBills.filter(
+        (b) => ![String(BillStatus.PAID), String(BillStatus.CANCELLED), String(BillStatus.VOIDED)].includes(b.status)
       ).length,
-      outstandingAmount: bills
-        .filter((b) => b.status === 'SENT' || b.status === 'OVERDUE')
+      outstandingAmount: normalizedBills
+        .filter((b) => ![String(BillStatus.PAID), String(BillStatus.CANCELLED), String(BillStatus.VOIDED)].includes(b.status))
         .reduce((sum, b) => sum + b.totalAmount, 0),
-      totalAmount: bills.reduce((sum, b) => sum + b.totalAmount, 0),
-      paid: bills.filter((b) => b.status === 'PAID').length,
-      paidAmount: bills
-        .filter((b) => b.status === 'PAID')
+      totalAmount: normalizedBills.reduce((sum, b) => sum + b.totalAmount, 0),
+      paid: normalizedBills.filter((b) => b.status === String(BillStatus.PAID)).length,
+      paidAmount: normalizedBills
+        .filter((b) => b.status === String(BillStatus.PAID))
         .reduce((sum, b) => sum + b.totalAmount, 0),
-      overdue: bills.filter((b) => b.status === 'OVERDUE').length,
-      overdueAmount: bills
-        .filter((b) => b.status === 'OVERDUE')
+      overdue: normalizedBills.filter((b) => b.status === String(BillStatus.OVERDUE)).length,
+      overdueAmount: normalizedBills
+        .filter((b) => b.status === String(BillStatus.OVERDUE))
         .reduce((sum, b) => sum + b.totalAmount, 0),
     };
 
     return NextResponse.json({
-      bills,
+      bills: normalizedBills,
       stats,
     });
   } catch (error) {
@@ -129,7 +184,7 @@ export async function GET(
 
 /**
  * POST /api/orgs/[orgSlug]/bills
- * Create a new bill with automatic GL posting
+ * Create a new bill with automatic GL posting via DoubleEntryService
  */
 export async function POST(
   request: NextRequest,
@@ -149,43 +204,48 @@ export async function POST(
     const body = await request.json();
     const validatedData = createBillSchema.parse(body);
 
-    // Validate vendor exists
-    const vendor = await prisma.vendor.findFirst({
-      where: {
-        id: validatedData.vendorId,
-        organizationId,
-      },
-    });
-
-    if (!vendor) {
-      return NextResponse.json({ error: 'Vendor not found' }, { status: 404 });
-    }
-
-    // Validate all expense accounts exist
-    const accountIds = validatedData.items.map((item) => item.accountId);
-    const accounts = await prisma.account.findMany({
-      where: {
-        id: { in: accountIds },
-        organizationId,
-        isActive: true,
-      },
-    });
-
-    if (accounts.length !== accountIds.length) {
-      return NextResponse.json(
-        { error: 'One or more accounts not found' },
-        { status: 400 }
-      );
-    }
-
-    // Create bill using BillService (handles double-entry posting)
+    // Use BillService to create bill with GL posting
     const bill = await BillService.createBill(
-      validatedData,
+      {
+        vendorId: validatedData.vendorId,
+        billDate: validatedData.billDate,
+        dueDate: validatedData.dueDate,
+        billNumber: validatedData.billNumber,
+        notes: validatedData.notes,
+        referenceNumber: validatedData.referenceNumber,
+        vendorInvoiceNo: validatedData.vendorInvoiceNo,
+        taxCategory: validatedData.taxCategory,
+        whtApplicable: validatedData.whtApplicable,
+        whtRate: validatedData.whtRate,
+        whtAmount: validatedData.whtAmount,
+        efrisReceiptNo: validatedData.efrisReceiptNo,
+        items: validatedData.items,
+      },
       organizationId,
       userId
     );
 
-    return NextResponse.json(bill, { status: 201 });
+    return NextResponse.json({
+      id: bill.id,
+      billNumber: bill.billNumber,
+      billDate: bill.billDate,
+      dueDate: bill.dueDate,
+      subtotalAmount: Number(bill.subtotal),
+      taxAmount: Number(bill.taxAmount),
+      totalAmount: Number(bill.total),
+      status: bill.status,
+      vendor: { id: bill.vendor.id, name: bill.vendor.companyName },
+      items: bill.items.map((item: any) => ({
+        id: item.id,
+        description: item.description,
+        quantity: Number(item.quantity),
+        unitPrice: Number(item.unitPrice),
+        taxAmount: Number(item.taxAmount),
+        totalAmount: Number(item.total),
+        accountId: item.accountId,
+      })),
+      transactionId: bill.transactionId,
+    }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

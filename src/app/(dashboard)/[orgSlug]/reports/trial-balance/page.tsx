@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Calendar, Download, Printer, CheckCircle, XCircle } from 'lucide-react';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/currency';
 
 interface Account {
   id: string;
@@ -36,6 +38,7 @@ interface TrialBalanceData {
 export default function TrialBalancePage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
+  const { currency } = useOrganization();
 
   const [data, setData] = useState<TrialBalanceData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,7 +51,7 @@ export default function TrialBalancePage() {
   const fetchTrialBalance = async () => {
     try {
       const response = await fetch(
-        `/api/orgs/${orgSlug}/reports/trial-balance?asOfDate=${asOfDate}`
+        `/api/orgs/{formatCurrency(orgSlug, currency)}/reports/trial-balance?asOfDate={formatCurrency(asOfDate, currency)}`
       );
       const result = await response.json();
 
@@ -88,14 +91,14 @@ export default function TrialBalancePage() {
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
               {account.debit > 0 ? (
-                <span className="text-gray-900">${account.debit.toLocaleString()}</span>
+                <span className="text-gray-900">{formatCurrency(account.debit, currency)}</span>
               ) : (
                 <span className="text-gray-400">-</span>
               )}
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
               {account.credit > 0 ? (
-                <span className="text-gray-900">${account.credit.toLocaleString()}</span>
+                <span className="text-gray-900">{formatCurrency(account.credit, currency)}</span>
               ) : (
                 <span className="text-gray-400">-</span>
               )}
@@ -107,10 +110,10 @@ export default function TrialBalancePage() {
             {title} Total
           </td>
           <td className="px-6 py-3 text-sm text-right text-gray-900">
-            ${groupTotalDebit.toLocaleString()}
+            {formatCurrency(groupTotalDebit, currency)}
           </td>
           <td className="px-6 py-3 text-sm text-right text-gray-900">
-            ${groupTotalCredit.toLocaleString()}
+            {formatCurrency(groupTotalCredit, currency)}
           </td>
         </tr>
       </>
@@ -189,14 +192,14 @@ export default function TrialBalancePage() {
               >
                 {data.summary.isBalanced
                   ? 'Total debits equal total credits'
-                  : `Difference: $${data.summary.difference.toLocaleString()}`}
+                  : `Difference: ${formatCurrency(data.summary.difference, currency)}`}
               </div>
             </div>
           </div>
 
           <div className="text-right">
             <div className="text-2xl font-bold text-gray-900">
-              ${data.summary.totalDebits.toLocaleString()}
+              {formatCurrency(data.summary.totalDebits, currency)}
             </div>
             <div className="text-sm text-gray-600">Total Debits = Total Credits</div>
           </div>
@@ -269,10 +272,10 @@ export default function TrialBalancePage() {
                   TOTAL
                 </td>
                 <td className="px-6 py-4 text-right text-blue-900">
-                  ${data.summary.totalDebits.toLocaleString()}
+                  {formatCurrency(data.summary.totalDebits, currency)}
                 </td>
                 <td className="px-6 py-4 text-right text-blue-900">
-                  ${data.summary.totalCredits.toLocaleString()}
+                  {formatCurrency(data.summary.totalCredits, currency)}
                 </td>
               </tr>
 
@@ -283,7 +286,7 @@ export default function TrialBalancePage() {
                     DIFFERENCE (Out of Balance)
                   </td>
                   <td colSpan={2} className="px-6 py-4 text-right text-red-900">
-                    ${data.summary.difference.toLocaleString()}
+                    {formatCurrency(data.summary.difference, currency)}
                   </td>
                 </tr>
               )}

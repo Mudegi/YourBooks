@@ -6,13 +6,17 @@ import Link from 'next/link';
 import { ArrowLeft, Plus, Trash2, Save, ChevronDown } from 'lucide-react';
 import { Tooltip } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/utils';
 
 interface Customer {
   id: string;
-  name: string;
-  companyName: string | null;
-  email: string | null;
-  paymentTerms: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  companyName?: string | null;
+  email?: string | null;
+  paymentTerms?: number;
 }
 
 interface TaxLine {
@@ -61,6 +65,7 @@ export default function NewInvoicePage() {
   const [undoStack, setUndoStack] = useState<InvoiceItem[][]>([]);
   const [redoStack, setRedoStack] = useState<InvoiceItem[][]>([]);
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
+  const { currency } = useOrganization();
 
   useEffect(() => {
     fetchCustomers();
@@ -72,25 +77,9 @@ export default function NewInvoicePage() {
       const customer = customers.find((c) => c.id === formData.customerId);
       if (customer) {
         const invoiceDate = new Date(formData.invoiceDate);
-        let daysToAdd = 30; // Default NET_30
-
-        switch (customer.paymentTerms) {
-          case 'DUE_ON_RECEIPT':
-            daysToAdd = 0;
-            break;
-          case 'NET_15':
-            daysToAdd = 15;
-            break;
-          case 'NET_30':
-            daysToAdd = 30;
-            break;
-          case 'NET_60':
-            daysToAdd = 60;
-            break;
-          case 'NET_90':
-            daysToAdd = 90;
-            break;
-        }
+        const daysToAdd = Number.isFinite(customer.paymentTerms)
+          ? Number(customer.paymentTerms)
+          : 30;
 
         const dueDate = new Date(invoiceDate);
         dueDate.setDate(dueDate.getDate() + daysToAdd);
@@ -555,7 +544,7 @@ export default function NewInvoicePage() {
                       </td>
                       <td className="px-4 py-2">
                         <div className="text-sm font-medium text-gray-900">
-                          ${item.amount.toFixed(2)}
+                          {formatCurrency(item.amount, currency)}
                         </div>
                       </td>
                       <td className="px-4 py-2">
@@ -672,33 +661,33 @@ export default function NewInvoicePage() {
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Subtotal:</span>
                 <span className="font-medium text-gray-900">
-                  ${totals.subtotal.toFixed(2)}
+                  {formatCurrency(totals.subtotal, currency)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Tax (excl. WHT):</span>
-                <span className="font-medium text-gray-900">${totals.tax.toFixed(2)}</span>
+                <span className="font-medium text-gray-900">{formatCurrency(totals.tax, currency)}</span>
               </div>
               <div className="flex justify-between text-sm border-t pt-2">
                 <span className="text-gray-600">Total (before WHT):</span>
-                <span className="font-medium text-gray-900">${totals.total.toFixed(2)}</span>
+                <span className="font-medium text-gray-900">{formatCurrency(totals.total, currency)}</span>
               </div>
               {totals.withholding > 0 && (
                 <>
                   <div className="flex justify-between text-sm">
                     <span className="text-red-600">Withholding Tax:</span>
-                    <span className="font-medium text-red-600">-${totals.withholding.toFixed(2)}</span>
+                    <span className="font-medium text-red-600">-{formatCurrency(totals.withholding, currency)}</span>
                   </div>
                   <div className="flex justify-between text-lg font-bold border-t pt-2 bg-blue-50 -mx-2 px-2 py-2 rounded">
                     <span className="text-gray-900">Amount Due (net of WHT):</span>
-                    <span className="text-blue-600">${totals.amountDue.toFixed(2)}</span>
+                    <span className="text-blue-600">{formatCurrency(totals.amountDue, currency)}</span>
                   </div>
                 </>
               )}
               {totals.withholding === 0 && (
                 <div className="flex justify-between text-lg font-bold border-t pt-2">
                   <span className="text-gray-900">Total:</span>
-                  <span className="text-blue-600">${totals.total.toFixed(2)}</span>
+                  <span className="text-blue-600">{formatCurrency(totals.total, currency)}</span>
                 </div>
               )}
             </div>

@@ -55,9 +55,8 @@ export default function RegisterPage() {
         throw new Error(data.error || 'Registration failed');
       }
 
-      // Redirect to organization dashboard
-      const orgSlug = data.data.organization.slug;
-      router.push(`/${orgSlug}/dashboard`);
+      // Redirect to onboarding wizard
+      router.push('/onboarding');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {

@@ -184,8 +184,15 @@ async function main() {
 
   // 7. Create Sample Customer
   console.log('👥 Creating sample customer...');
-  await prisma.customer.create({
-    data: {
+  await prisma.customer.upsert({
+    where: {
+      organizationId_customerNumber: {
+        organizationId: organization.id,
+        customerNumber: 'CUST-0001',
+      },
+    },
+    update: {},
+    create: {
       organizationId: organization.id,
       customerNumber: 'CUST-0001',
       firstName: 'John',
@@ -208,100 +215,177 @@ async function main() {
 
   // 8. Create Sample Vendor
   console.log('🏪 Creating sample vendor...');
-  await prisma.vendor.create({
-    data: {
-      organizationId: organization.id,
-      vendorNumber: 'VEND-0001',
-      companyName: 'Office Supplies Inc.',
-      contactName: 'Jane Smith',
-      email: 'jane@officesupplies.com',
-      phone: '+1234567890',
-      paymentTerms: 30,
-      billingAddress: {
-        street: '789 Vendor Blvd',
-        city: 'Chicago',
-        state: 'IL',
-        zip: '60601',
-        country: 'USA',
-      },
-      isActive: true,
-    },
-  });
-  console.log(`✅ Sample vendor created\n`);
-
-  // 9. Create Sample Product
-  console.log('📦 Creating sample product...');
-  const inventoryAccount = await prisma.chartOfAccount.findFirst({
-    where: { organizationId: organization.id, code: '1300' },
-  });
-  const cogsAccount = await prisma.chartOfAccount.findFirst({
-    where: { organizationId: organization.id, code: '5000' },
-  });
-  const salesAccount = await prisma.chartOfAccount.findFirst({
-    where: { organizationId: organization.id, code: '4000' },
-  });
-  const product = await prisma.product.create({
-    data: {
-      organizationId: organization.id,
-      sku: 'PROD-001',
-      name: 'Standard Widget',
-      description: 'A high-quality widget for all your needs',
-      productType: 'INVENTORY',
-      category: 'Products',
-      unitOfMeasure: 'unit',
-      purchasePrice: 50.00,
-      sellingPrice: 100.00,
-      trackInventory: true,
-      reorderLevel: 10,
-      reorderQuantity: 50,
-      taxable: true,
-      defaultTaxRate: 8.5,
-      incomeAccountId: salesAccount?.id ?? undefined,
-      expenseAccountId: cogsAccount?.id ?? undefined,
-      assetAccountId: inventoryAccount?.id ?? undefined,
-      isActive: true,
-    },
-  });
-
-  // Create initial inventory
-  await prisma.inventoryItem.create({
-    data: {
-      productId: product.id,
-      warehouseLocation: 'Main Warehouse',
-      quantityOnHand: 100,
-      quantityAvailable: 100,
-      averageCost: 50.00,
-      totalValue: 5000.00,
-    },
-  });
-  console.log(`✅ Sample product created with inventory\n`);
-
-  // 10. Create Bank Account
-  console.log('🏦 Creating bank account...');
-  const checkingAccount = await prisma.chartOfAccount.findFirst({
-    where: {
-      organizationId: organization.id,
-      code: '1100',
-    },
-  });
-
-  if (checkingAccount) {
-    await prisma.bankAccount.create({
+  try {
+    await prisma.vendor.create({
       data: {
         organizationId: organization.id,
-        accountName: 'Main Checking Account',
-        accountNumber: '****1234',
-        bankName: 'First National Bank',
-        currency: 'USD',
-        accountType: 'CHECKING',
-        openingBalance: 10000.00,
-        currentBalance: 10000.00,
-        glAccountId: checkingAccount.id,
+        vendorNumber: 'VEND-0001',
+        companyName: 'Office Supplies Inc.',
+        contactName: 'Jane Smith',
+        email: 'jane@officesupplies.com',
+        phone: '+1234567890',
+        paymentTerms: 30,
+        billingAddress: {
+          street: '789 Vendor Blvd',
+          city: 'Chicago',
+          state: 'IL',
+          zip: '60601',
+          country: 'USA',
+        },
         isActive: true,
       },
     });
-    console.log(`✅ Bank account created\n`);
+    console.log(`✅ Sample vendor created\n`);
+  } catch (e) {
+    console.log(`ℹ️  Sample vendor already exists\n`);
   }
+
+  // 9. Create Sample Product
+  console.log('📦 Creating sample product...');
+  try {
+    const inventoryAccount = await prisma.chartOfAccount.findFirst({
+      where: { organizationId: organization.id, code: '1300' },
+    });
+    const cogsAccount = await prisma.chartOfAccount.findFirst({
+      where: { organizationId: organization.id, code: '5000' },
+    });
+    const salesAccount = await prisma.chartOfAccount.findFirst({
+      where: { organizationId: organization.id, code: '4000' },
+    });
+
+    // Get the unit UnitOfMeasure
+    const unitOfMeasure = await prisma.unitOfMeasure.findFirst({
+      where: { organizationId: organization.id, code: 'unit' },
+    });
+
+    const product = await prisma.product.create({
+      data: {
+        organizationId: organization.id,
+        sku: 'PROD-001',
+        name: 'Standard Widget',
+        description: 'A high-quality widget for all your needs',
+        productType: 'INVENTORY',
+        category: 'Products',
+        unitOfMeasureId: unitOfMeasure?.id,
+        purchasePrice: 50.00,
+        sellingPrice: 100.00,
+        trackInventory: true,
+        reorderLevel: 10,
+        reorderQuantity: 50,
+        taxable: true,
+        defaultTaxRate: 8.5,
+        incomeAccountId: salesAccount?.id ?? undefined,
+        expenseAccountId: cogsAccount?.id ?? undefined,
+        assetAccountId: inventoryAccount?.id ?? undefined,
+        isActive: true,
+      },
+    });
+
+    // Create initial inventory
+    await prisma.inventoryItem.create({
+      data: {
+        productId: product.id,
+        warehouseLocation: 'Main Warehouse',
+        quantityOnHand: 100,
+        quantityAvailable: 100,
+        averageCost: 50.00,
+        totalValue: 5000.00,
+      },
+    });
+    console.log(`✅ Sample product created with inventory\n`);
+  } catch (e) {
+    console.log(`ℹ️  Sample product already exists\n`);
+  }
+
+  // 10. Create Bank Account
+  console.log('🏦 Creating bank account...');
+  try {
+    const checkingAccount = await prisma.chartOfAccount.findFirst({
+      where: {
+        organizationId: organization.id,
+        code: '1100',
+      },
+    });
+
+    if (checkingAccount) {
+      await prisma.bankAccount.create({
+        data: {
+          organizationId: organization.id,
+          accountName: 'Main Checking Account',
+          accountNumber: '****1234',
+          bankName: 'First National Bank',
+          currency: 'USD',
+          accountType: 'CHECKING',
+          openingBalance: 10000.00,
+          currentBalance: 10000.00,
+          glAccountId: checkingAccount.id,
+          isActive: true,
+        },
+      });
+      console.log(`✅ Bank account created\n`);
+    }
+  } catch (e) {
+    console.log(`ℹ️  Bank account already exists\n`);
+  }
+
+  // 3. Seed Units of Measure for Demo Organization
+  console.log('📏 Seeding units of measure...');
+  const commonUnits = [
+    { code: 'unit', name: 'Unit', abbreviation: 'unit', category: 'quantity' },
+    { code: 'box', name: 'Box', abbreviation: 'box', category: 'quantity' },
+    { code: 'case', name: 'Case', abbreviation: 'case', category: 'quantity' },
+    { code: 'pack', name: 'Pack', abbreviation: 'pack', category: 'quantity' },
+    { code: 'dozen', name: 'Dozen', abbreviation: 'dz', category: 'quantity' },
+    { code: 'pair', name: 'Pair', abbreviation: 'pr', category: 'quantity' },
+    { code: 'set', name: 'Set', abbreviation: 'set', category: 'quantity' },
+    { code: 'kg', name: 'Kilogram', abbreviation: 'kg', category: 'weight' },
+    { code: 'g', name: 'Gram', abbreviation: 'g', category: 'weight' },
+    { code: 'lb', name: 'Pound', abbreviation: 'lb', category: 'weight' },
+    { code: 'oz', name: 'Ounce', abbreviation: 'oz', category: 'weight' },
+    { code: 'metric_ton', name: 'Metric Ton', abbreviation: 't', category: 'weight' },
+    { code: 'm', name: 'Meter', abbreviation: 'm', category: 'length' },
+    { code: 'cm', name: 'Centimeter', abbreviation: 'cm', category: 'length' },
+    { code: 'mm', name: 'Millimeter', abbreviation: 'mm', category: 'length' },
+    { code: 'inch', name: 'Inch', abbreviation: 'in', category: 'length' },
+    { code: 'ft', name: 'Foot', abbreviation: 'ft', category: 'length' },
+    { code: 'yard', name: 'Yard', abbreviation: 'yd', category: 'length' },
+    { code: 'l', name: 'Liter', abbreviation: 'L', category: 'volume' },
+    { code: 'ml', name: 'Milliliter', abbreviation: 'mL', category: 'volume' },
+    { code: 'gallon', name: 'Gallon (US)', abbreviation: 'gal', category: 'volume' },
+    { code: 'liter_gallon', name: 'Gallon (Imperial)', abbreviation: 'gal', category: 'volume' },
+    { code: 'pint', name: 'Pint', abbreviation: 'pt', category: 'volume' },
+    { code: 'cup', name: 'Cup', abbreviation: 'cup', category: 'volume' },
+    { code: 'tbsp', name: 'Tablespoon', abbreviation: 'tbsp', category: 'volume' },
+    { code: 'tsp', name: 'Teaspoon', abbreviation: 'tsp', category: 'volume' },
+    { code: 'm2', name: 'Square Meter', abbreviation: 'm²', category: 'area' },
+    { code: 'ft2', name: 'Square Foot', abbreviation: 'ft²', category: 'area' },
+    { code: 'acre', name: 'Acre', abbreviation: 'ac', category: 'area' },
+    { code: 'hectare', name: 'Hectare', abbreviation: 'ha', category: 'area' },
+    { code: 'hour', name: 'Hour', abbreviation: 'hr', category: 'time' },
+    { code: 'minute', name: 'Minute', abbreviation: 'min', category: 'time' },
+    { code: 'day', name: 'Day', abbreviation: 'day', category: 'time' },
+  ];
+
+  for (const unit of commonUnits) {
+    await prisma.unitOfMeasure.upsert({
+      where: {
+        organizationId_code: {
+          organizationId: organization.id,
+          code: unit.code,
+        },
+      },
+      update: {},
+      create: {
+        organizationId: organization.id,
+        code: unit.code,
+        name: unit.name,
+        abbreviation: unit.abbreviation,
+        category: unit.category,
+        isActive: true,
+      },
+    });
+  }
+  console.log(`✅ ${commonUnits.length} units of measure created\n`);
 
   console.log('✨ Database seed completed successfully!\n');
   console.log('📝 Login credentials:');
@@ -316,5 +400,4 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await prisma.$disconnect();
-  });
+    await prisma.$disconnect();  });

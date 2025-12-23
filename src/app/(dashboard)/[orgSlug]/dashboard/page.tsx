@@ -3,6 +3,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Users, FileText, Package, Plus, CreditCard, ArrowRight, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useParams } from 'next/navigation';
+import { useOnboardingGuard } from '@/hooks/useOnboardingGuard';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/currency';
 
 type Kpis = {
   revenue: number;
@@ -17,6 +20,10 @@ type Kpis = {
 };
 
 export default function DashboardPage() {
+  // Onboarding guard - redirects if setup incomplete
+  const onboardingCheck = useOnboardingGuard();
+  const { currency } = useOrganization();
+  
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
   const [stats, setStats] = useState<Kpis | null>(null);
@@ -196,7 +203,7 @@ export default function DashboardPage() {
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <p className="text-sm font-medium text-green-700 mb-1">Money In</p>
-                  <p className="text-3xl font-bold text-green-600">$45,200</p>
+                  <p className="text-3xl font-bold text-green-600">{formatCurrency(45200, currency)}</p>
                   <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
                     <TrendingUp className="h-3 w-3" />
                     <span>+12.5% from last month</span>
@@ -212,7 +219,7 @@ export default function DashboardPage() {
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <p className="text-sm font-medium text-red-700 mb-1">Money Out</p>
-                  <p className="text-3xl font-bold text-red-600">$28,300</p>
+                  <p className="text-3xl font-bold text-red-600">{formatCurrency(28300, currency)}</p>
                   <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
                     <TrendingDown className="h-3 w-3" />
                     <span>+8.2% from last month</span>
@@ -228,7 +235,7 @@ export default function DashboardPage() {
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <p className="text-sm font-medium text-blue-700 mb-1">Net Cash Flow</p>
-                  <p className="text-3xl font-bold text-blue-600">$16,900</p>
+                  <p className="text-3xl font-bold text-blue-600">{formatCurrency(16900, currency)}</p>
                   <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
                     <TrendingUp className="h-3 w-3" />
                     <span>Positive cash flow</span>
@@ -274,7 +281,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-bold text-gray-900">${invoice.amount.toLocaleString()}</div>
+                  <div className="font-bold text-gray-900">{formatCurrency(invoice.amount, currency)}</div>
                   <div className={`text-xs font-medium px-2 py-1 rounded-full inline-block ${
                     invoice.status === 'Paid' ? 'bg-green-100 text-green-700' :
                     invoice.status === 'Overdue' ? 'bg-red-100 text-red-700' :

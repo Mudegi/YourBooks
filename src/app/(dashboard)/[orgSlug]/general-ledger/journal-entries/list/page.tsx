@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Eye, Trash2 } from 'lucide-react';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/utils';
 
 interface Transaction {
   id: string;
@@ -32,6 +34,7 @@ interface Transaction {
 export default function TransactionsListPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
+  const { currency } = useOrganization();
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -177,7 +180,7 @@ export default function TransactionsListPage() {
                       <span>
                         Posted by: {transaction.createdBy.firstName} {transaction.createdBy.lastName}
                       </span>
-                      <span>Amount: ${calculateTotalAmount(transaction).toLocaleString()}</span>
+                      <span>Amount: {formatCurrency(calculateTotalAmount(transaction), currency)}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -221,10 +224,10 @@ export default function TransactionsListPage() {
                           <span className="text-gray-900">{entry.account.name}</span>
                         </td>
                         <td className="py-2 text-right text-gray-900">
-                          {entry.entryType === 'DEBIT' && `$${entry.amount.toLocaleString()}`}
+                          {entry.entryType === 'DEBIT' ? formatCurrency(entry.amount, currency) : '-'}
                         </td>
                         <td className="py-2 text-right text-gray-900">
-                          {entry.entryType === 'CREDIT' && `$${entry.amount.toLocaleString()}`}
+                          {entry.entryType === 'CREDIT' ? formatCurrency(entry.amount, currency) : '-'}
                         </td>
                       </tr>
                     ))}

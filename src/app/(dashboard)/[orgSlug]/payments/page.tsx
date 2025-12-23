@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Alert } from '@/components/ui/alert';
 import Loading from '@/components/ui/loading';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/utils';
 
 interface Customer {
   id: string;
@@ -57,6 +59,7 @@ interface Stats {
 export default function PaymentsPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
+  const { currency } = useOrganization();
 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -138,7 +141,7 @@ export default function PaymentsPage() {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold text-green-600">
-                ${stats.customerPaymentAmount.toFixed(2)}
+                {formatCurrency(stats.customerPaymentAmount, currency)}
               </p>
               <p className="text-xs text-gray-500">
                 {stats.customerPaymentCount} payment
@@ -155,7 +158,7 @@ export default function PaymentsPage() {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold text-red-600">
-                ${stats.vendorPaymentAmount.toFixed(2)}
+                {formatCurrency(stats.vendorPaymentAmount, currency)}
               </p>
               <p className="text-xs text-gray-500">
                 {stats.vendorPaymentCount} payment
@@ -176,7 +179,7 @@ export default function PaymentsPage() {
                   stats.netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'
                 }`}
               >
-                ${stats.netCashFlow.toFixed(2)}
+                {formatCurrency(stats.netCashFlow, currency)}
               </p>
               <p className="text-xs text-gray-500">
                 {stats.total} total payment{stats.total !== 1 ? 's' : ''}
@@ -286,8 +289,8 @@ export default function PaymentsPage() {
                             : 'text-red-600'
                         }`}
                       >
-                        {payment.paymentType === 'CUSTOMER_PAYMENT' ? '+' : '-'}$
-                        {payment.amount.toFixed(2)}
+                        {payment.paymentType === 'CUSTOMER_PAYMENT' ? '+' : '-'}
+                        {formatCurrency(payment.amount, currency)}
                       </td>
                       <td className="py-3">
                         <Link

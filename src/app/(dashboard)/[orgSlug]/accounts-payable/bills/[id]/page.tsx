@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import Loading from '@/components/ui/loading';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/utils';
 
 interface Account {
   id: string;
@@ -87,6 +89,7 @@ export default function BillDetailsPage() {
   const router = useRouter();
   const orgSlug = params.orgSlug as string;
   const billId = params.id as string;
+  const { currency } = useOrganization();
 
   const [bill, setBill] = useState<Bill | null>(null);
   const [loading, setLoading] = useState(true);
@@ -207,6 +210,11 @@ export default function BillDetailsPage() {
             Print
           </Button>
           {bill.status === 'DRAFT' && (
+            <Link href={`/${orgSlug}/accounts-payable/bills/${billId}/edit`}>
+              <Button variant="default">Edit</Button>
+            </Link>
+          )}
+          {bill.status === 'DRAFT' && (
             <Button
               onClick={() => handleStatusUpdate('SENT')}
               disabled={updating}
@@ -247,26 +255,26 @@ export default function BillDetailsPage() {
               <div>
                 <p className="text-sm text-gray-600">Total Amount</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  ${bill.totalAmount.toFixed(2)}
+                  {formatCurrency(bill.totalAmount, currency)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Amount Paid</p>
                 <p className="text-2xl font-bold text-green-600">
-                  $
-                  {bill.paymentAllocations
-                    .reduce((sum, p) => sum + p.amount, 0)
-                    .toFixed(2)}
+                  {formatCurrency(
+                    bill.paymentAllocations.reduce((sum, p) => sum + p.amount, 0),
+                    currency
+                  )}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Amount Due</p>
                 <p className="text-2xl font-bold text-red-600">
-                  $
-                  {(
+                  {formatCurrency(
                     bill.totalAmount -
-                    bill.paymentAllocations.reduce((sum, p) => sum + p.amount, 0)
-                  ).toFixed(2)}
+                      bill.paymentAllocations.reduce((sum, p) => sum + p.amount, 0),
+                    currency
+                  )}
                 </p>
               </div>
             </div>
@@ -296,7 +304,7 @@ export default function BillDetailsPage() {
                         {allocation.payment.referenceNumber || '—'}
                       </td>
                       <td className="px-4 py-2 text-right font-medium text-green-600">
-                        ${allocation.amount.toFixed(2)}
+                        {formatCurrency(allocation.amount, currency)}
                       </td>
                       <td className="px-4 py-2 text-center">
                         <Link
@@ -399,17 +407,23 @@ export default function BillDetailsPage() {
                   <tr key={item.id} className="border-b">
                     <td className="py-3">{item.description}</td>
                     <td className="py-3 text-sm text-gray-600">
-                      {item.account.code} - {item.account.name}
+                      {item.account ? (
+                        <>
+                          {item.account.code} - {item.account.name}
+                        </>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td className="py-3 text-right">{item.quantity}</td>
                     <td className="py-3 text-right">
-                      ${item.unitPrice.toFixed(2)}
+                      {formatCurrency(item.unitPrice, currency)}
                     </td>
                     <td className="py-3 text-right">
-                      ${item.taxAmount.toFixed(2)}
+                      {formatCurrency(item.taxAmount, currency)}
                     </td>
                     <td className="py-3 text-right font-medium">
-                      ${item.totalAmount.toFixed(2)}
+                      {formatCurrency(item.totalAmount, currency)}
                     </td>
                   </tr>
                 ))}
@@ -422,15 +436,15 @@ export default function BillDetailsPage() {
             <div className="w-64 space-y-2">
               <div className="flex justify-between text-gray-700">
                 <span>Subtotal:</span>
-                <span>${bill.subtotalAmount.toFixed(2)}</span>
+                <span>{formatCurrency(bill.subtotalAmount, currency)}</span>
               </div>
               <div className="flex justify-between text-gray-700">
                 <span>Tax:</span>
-                <span>${bill.taxAmount.toFixed(2)}</span>
+                <span>{formatCurrency(bill.taxAmount, currency)}</span>
               </div>
               <div className="flex justify-between text-xl font-bold border-t-2 pt-2">
                 <span>Total:</span>
-                <span>${bill.totalAmount.toFixed(2)}</span>
+                <span>{formatCurrency(bill.totalAmount, currency)}</span>
               </div>
             </div>
           </div>
@@ -501,10 +515,10 @@ export default function BillDetailsPage() {
                         </td>
                         <td className="py-2 text-gray-600">{entry.description}</td>
                         <td className="py-2 text-right text-green-600">
-                          {entry.debit > 0 ? `$${entry.debit.toFixed(2)}` : '—'}
+                          {entry.debit > 0 ? formatCurrency(entry.debit, currency) : '—'}
                         </td>
                         <td className="py-2 text-right text-red-600">
-                          {entry.credit > 0 ? `$${entry.credit.toFixed(2)}` : '—'}
+                          {entry.credit > 0 ? formatCurrency(entry.credit, currency) : '—'}
                         </td>
                       </tr>
                     ))}
@@ -515,16 +529,16 @@ export default function BillDetailsPage() {
                         Total
                       </td>
                       <td className="py-2 text-right text-green-600">
-                        $
-                        {bill.transaction.entries
-                          .reduce((sum, e) => sum + e.debit, 0)
-                          .toFixed(2)}
+                        {formatCurrency(
+                          bill.transaction.entries.reduce((sum, e) => sum + e.debit, 0),
+                          currency
+                        )}
                       </td>
                       <td className="py-2 text-right text-red-600">
-                        $
-                        {bill.transaction.entries
-                          .reduce((sum, e) => sum + e.credit, 0)
-                          .toFixed(2)}
+                        {formatCurrency(
+                          bill.transaction.entries.reduce((sum, e) => sum + e.credit, 0),
+                          currency
+                        )}
                       </td>
                     </tr>
                   </tfoot>

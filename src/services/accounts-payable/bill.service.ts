@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
-import { DoubleEntryService } from '../accounting/double-entry.service';
+import { DoubleEntryService, LedgerEntryInput } from '../accounting/double-entry.service';
+import { BillStatus, EntryType, TransactionType } from '@prisma/client';
 
 interface BillItem {
   description: string;
@@ -7,6 +8,9 @@ interface BillItem {
   unitPrice: number;
   accountId: string; // Expense account
   taxAmount: number;
+  taxRate?: number; // VAT rate for this item
+  taxCategory?: string; // 'STANDARD' (18%), 'ZERO' (0%), 'EXEMPT' for URA
+  claimInputTax?: boolean; // Whether to claim input VAT
 }
 
 interface CreateBillData {
@@ -17,18 +21,28 @@ interface CreateBillData {
   items: BillItem[];
   notes?: string;
   referenceNumber?: string;
+  vendorInvoiceNo?: string;
+  taxCategory?: string; // Overall bill tax category for URA compliance
+  whtApplicable?: boolean;
+  whtRate?: number;
+  whtAmount?: number;
+  efrisReceiptNo?: string;
 }
 
 /**
  * BillService handles bill creation with automatic double-entry posting
  * 
- * When a bill is created:
- * - DR: Expense Account (for each line item)
- * - CR: Accounts Payable (total bill amount)
+ * Double-entry structure for a bill:
+ * - DR: Expense Account (net of VAT for each line item)
+ * - DR: VAT Input / Recoverable (if claimable and tax applies)
+ * - CR: Accounts Payable (total gross amount)
+ * - [Optional] CR: WHT Payable (if withholding applies)
+ * - [Optional] DR: Accounts Payable (to reduce for withheld amount)
  */
 export class BillService {
   /**
-   * Create a new bill with automatic GL posting
+   * Create a new bill with automatic GL posting via DoubleEntryService
+   * Creates balanced ledger entries that enforce debit = credit
    */
   static async createBill(
     data: CreateBillData,
@@ -47,20 +61,8 @@ export class BillService {
       throw new Error('Vendor not found');
     }
 
-    // Calculate totals
-    const subtotal = data.items.reduce(
-      (sum, item) => sum + item.quantity * item.unitPrice,
-      0
-    );
-    const taxTotal = data.items.reduce((sum, item) => sum + item.taxAmount, 0);
-    const totalAmount = subtotal + taxTotal;
-
-    // Generate bill number if not provided
-    const billNumber =
-      data.billNumber || (await this.generateBillNumber(organizationId));
-
     // Find Accounts Payable account (LIABILITY type)
-    const apAccount = await prisma.account.findFirst({
+    const apAccount = await prisma.chartOfAccount.findFirst({
       where: {
         organizationId,
         code: { startsWith: '2000' }, // Accounts Payable typically 2000-2999
@@ -76,50 +78,125 @@ export class BillService {
       );
     }
 
-    // Prepare ledger entries
-    const entries: Array<{
-      accountId: string;
-      debit: number;
-      credit: number;
-      description: string;
-    }> = [];
+    // Find VAT Input / Recoverable account (ASSET type or similar)
+    // Common code: 1400 (Input VAT / Recoverable Tax)
+    const vatInputAccount = await prisma.chartOfAccount.findFirst({
+      where: {
+        organizationId,
+        code: { startsWith: '1400' },
+        isActive: true,
+      },
+      orderBy: { code: 'asc' },
+    });
 
-    // DR: Expense accounts (one entry per line item)
-    for (const item of data.items) {
-      const lineTotal = item.quantity * item.unitPrice + item.taxAmount;
-      entries.push({
-        accountId: item.accountId,
-        debit: lineTotal,
-        credit: 0,
-        description: item.description,
+    // Find WHT Payable account if WHT applies (LIABILITY)
+    let whtPayableAccount = null;
+    if (data.whtApplicable && data.whtRate && data.whtRate > 0) {
+      whtPayableAccount = await prisma.chartOfAccount.findFirst({
+        where: {
+          organizationId,
+          code: { startsWith: '2100' }, // WHT Payable typically 2100-2199
+          accountType: 'LIABILITY',
+          isActive: true,
+        },
+        orderBy: { code: 'asc' },
       });
     }
 
-    // CR: Accounts Payable
-    entries.push({
+    // Calculate totals
+    const subtotal = data.items.reduce(
+      (sum, item) => sum + item.quantity * item.unitPrice,
+      0
+    );
+    const totalTaxAmount = data.items.reduce((sum, item) => sum + (item.taxAmount || 0), 0);
+    const whtAmount = data.whtAmount || 0;
+    const totalGross = subtotal + totalTaxAmount;
+    const totalPayable = totalGross - whtAmount; // Reduce for withheld portion
+
+    // Generate bill number if not provided
+    const billNumber =
+      data.billNumber || (await this.generateBillNumber(organizationId));
+
+    // Build double-entry ledger entries
+    const ledgerEntries: LedgerEntryInput[] = [];
+
+    // 1. DR: Expense accounts (one entry per line item, net of VAT)
+    for (const item of data.items) {
+      const lineNetAmount = item.quantity * item.unitPrice;
+      ledgerEntries.push({
+        accountId: item.accountId,
+        entryType: EntryType.DEBIT,
+        amount: lineNetAmount,
+        description: item.description,
+        currency: 'USD',
+      });
+    }
+
+    // 2. DR: VAT Input / Recoverable (if applicable and account exists)
+    if (totalTaxAmount > 0 && vatInputAccount) {
+      // Sum tax on items where claimable is true
+      const claimableVat = data.items
+        .filter((item) => item.claimInputTax !== false)
+        .reduce((sum, item) => sum + (item.taxAmount || 0), 0);
+
+      if (claimableVat > 0) {
+        ledgerEntries.push({
+          accountId: vatInputAccount.id,
+          entryType: EntryType.DEBIT,
+          amount: claimableVat,
+          description: `Input VAT - ${billNumber}`,
+          currency: 'USD',
+        });
+      }
+    }
+
+    // 3. CR: Accounts Payable (total gross)
+    ledgerEntries.push({
       accountId: apAccount.id,
-      debit: 0,
-      credit: totalAmount,
-      description: `Bill ${billNumber} - ${vendor.name}`,
+      entryType: EntryType.CREDIT,
+      amount: totalGross,
+      description: `Bill ${billNumber} - ${vendor.companyName}`,
+      currency: 'USD',
     });
+
+    // 4. [Optional] CR: WHT Payable + DR: AP Reduction
+    if (whtAmount > 0 && whtPayableAccount) {
+      ledgerEntries.push({
+        accountId: whtPayableAccount.id,
+        entryType: EntryType.CREDIT,
+        amount: whtAmount,
+        description: `WHT Payable - Bill ${billNumber}`,
+        currency: 'USD',
+      });
+
+      // DR: AP to reduce for withheld portion
+      ledgerEntries.push({
+        accountId: apAccount.id,
+        entryType: EntryType.DEBIT,
+        amount: whtAmount,
+        description: `WHT reduction on Bill ${billNumber}`,
+        currency: 'USD',
+      });
+    }
 
     // Create transaction and bill in a single database transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create GL transaction using DoubleEntryService
       const transaction = await DoubleEntryService.createTransaction(
         {
+          organizationId,
           transactionDate: data.billDate,
-          description: `Bill ${billNumber} - ${vendor.name}`,
+          transactionType: TransactionType.BILL,
+          description: `Bill ${billNumber} - ${vendor.companyName}`,
           referenceType: 'BILL',
-          referenceId: '', // Will be updated with bill ID
-          entries,
+          referenceId: '', // Will be updated after bill creation
+          createdById: userId,
+          entries: ledgerEntries,
         },
-        organizationId,
-        userId,
         tx
       );
 
-      // Create bill
+      // Create bill with URA fields
       const bill = await tx.bill.create({
         data: {
           billNumber,
@@ -127,24 +204,31 @@ export class BillService {
           organizationId,
           billDate: data.billDate,
           dueDate: data.dueDate,
-          subtotalAmount: subtotal,
-          taxAmount: taxTotal,
-          totalAmount,
-          status: 'DRAFT',
+          subtotal: subtotal.toString(),
+          taxAmount: totalTaxAmount.toString(),
+          total: totalGross.toString(),
+          amountDue: totalPayable.toString(),
+          status: BillStatus.DRAFT,
           notes: data.notes,
-          referenceNumber: data.referenceNumber,
+          vendorInvoiceNo: data.vendorInvoiceNo || null,
+          whtApplicable: data.whtApplicable || false,
+          whtRate: data.whtRate || 0,
+          whtAmount: whtAmount > 0 ? whtAmount.toString() : '0',
+          efrisReceiptNo: data.efrisReceiptNo || null,
           transactionId: transaction.id,
-          createdBy: userId,
-          updatedBy: userId,
           items: {
             create: data.items.map((item, index) => ({
               lineNumber: index + 1,
               description: item.description,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              taxAmount: item.taxAmount,
-              totalAmount: item.quantity * item.unitPrice + item.taxAmount,
+              quantity: item.quantity.toString(),
+              unitPrice: item.unitPrice.toString(),
+              taxAmount: (item.taxAmount || 0).toString(),
+              total: (item.quantity * item.unitPrice + (item.taxAmount || 0)).toString(),
               accountId: item.accountId,
+              taxRate: (item.taxRate || 0).toString(),
+              taxCategory: item.taxCategory || 'STANDARD',
+              claimInputTax: item.claimInputTax !== false,
+              sortOrder: index,
             })),
           },
         },
@@ -153,7 +237,7 @@ export class BillService {
           vendor: true,
           transaction: {
             include: {
-              entries: {
+              ledgerEntries: {
                 include: {
                   account: true,
                 },
@@ -212,6 +296,23 @@ export class BillService {
     organizationId: string,
     userId: string
   ) {
+    const toDbStatus = (status: typeof newStatus): BillStatus => {
+      switch (status) {
+        case 'SENT':
+          return BillStatus.SUBMITTED;
+        case 'PAID':
+          return BillStatus.PAID;
+        case 'OVERDUE':
+          return BillStatus.OVERDUE;
+        case 'CANCELLED':
+          return BillStatus.CANCELLED;
+        case 'DRAFT':
+        default:
+          return BillStatus.DRAFT;
+      }
+    };
+
+    const targetStatus = toDbStatus(newStatus);
     const bill = await prisma.bill.findFirst({
       where: {
         id: billId,
@@ -243,15 +344,14 @@ export class BillService {
       return await tx.bill.update({
         where: { id: billId },
         data: {
-          status: newStatus,
-          updatedBy: userId,
+          status: targetStatus,
         },
         include: {
           items: true,
           vendor: true,
           transaction: {
             include: {
-              entries: {
+              ledgerEntries: {
                 include: {
                   account: true,
                 },
@@ -287,29 +387,16 @@ export class BillService {
       throw new Error('Bill not found');
     }
 
-    if (bill.status === 'PAID') {
+    if (bill.status === BillStatus.PAID) {
       throw new Error('Cannot void a paid bill. Reverse the payment first.');
     }
 
-    await prisma.$transaction(async (tx) => {
-      // Void the GL transaction if it exists
-      if (bill.transaction) {
-        await DoubleEntryService.voidTransaction(
-          bill.transaction.id,
-          organizationId,
-          userId,
-          tx
-        );
-      }
-
-      // Update bill status to CANCELLED
-      await tx.bill.update({
-        where: { id: billId },
-        data: {
-          status: 'CANCELLED',
-          updatedBy: userId,
-        },
-      });
+    // Update bill status to CANCELLED
+    await prisma.bill.update({
+      where: { id: billId },
+      data: {
+        status: BillStatus.CANCELLED,
+      },
     });
 
     return true;

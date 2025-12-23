@@ -39,7 +39,7 @@ export function Modal({
       {/* Modal */}
       <div
         className={cn(
-          'relative bg-white rounded-lg shadow-xl w-full',
+          'relative bg-white rounded-lg shadow-xl w-full max-h-[90vh] flex flex-col',
           sizeClasses[size]
         )}
       >
@@ -60,7 +60,7 @@ export function Modal({
         </div>
 
         {/* Content */}
-        <div className="p-6">{children}</div>
+        <div className="p-6 overflow-y-auto">{children}</div>
       </div>
     </div>
   );

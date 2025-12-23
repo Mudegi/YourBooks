@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { customerSchema } from '@/lib/validation';
 
+const buildCustomerName = (customer: { firstName?: string | null; lastName?: string | null; companyName?: string | null }) => {
+  const personalName = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
+  return (customer.companyName || personalName || '').trim();
+};
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { orgSlug: string; id: string } }
@@ -50,7 +55,7 @@ export async function GET(
         status: { in: ['DRAFT', 'SENT', 'OVERDUE'] },
       },
       _sum: {
-        totalAmount: true,
+        total: true,
       },
     });
 
@@ -60,7 +65,7 @@ export async function GET(
         status: 'PAID',
       },
       _sum: {
-        totalAmount: true,
+        total: true,
       },
     });
 
@@ -68,8 +73,9 @@ export async function GET(
       success: true,
       data: {
         ...customer,
-        totalOwed: totalOwed._sum.totalAmount || 0,
-        totalPaid: totalPaid._sum.totalAmount || 0,
+        name: buildCustomerName(customer),
+        totalOwed: Number(totalOwed._sum?.total || 0),
+        totalPaid: Number(totalPaid._sum?.total || 0),
       },
     });
   } catch (error) {
@@ -150,23 +156,28 @@ export async function PUT(
         id: params.id,
       },
       data: {
-        name: data.name,
-        companyName: data.companyName,
+        companyName: data.companyName || null,
+        firstName: data.firstName,
+        lastName: data.lastName,
         email: data.email,
-        phone: data.phone,
-        taxId: data.taxId,
-        billingAddress: data.billingAddress,
-        shippingAddress: data.shippingAddress,
-        notes: data.notes,
-        creditLimit: data.creditLimit,
-        paymentTerms: data.paymentTerms,
-        isActive: data.isActive,
+        phone: data.phone || null,
+        website: data.website || null,
+        taxIdNumber: data.taxIdNumber || null,
+        billingAddress: data.billingAddress ?? undefined,
+        shippingAddress: data.shippingAddress ?? undefined,
+        notes: data.notes || null,
+        creditLimit: data.creditLimit ?? undefined,
+        paymentTerms: data.paymentTerms ?? existingCustomer.paymentTerms,
+        isActive: data.isActive ?? existingCustomer.isActive,
       },
     });
 
     return NextResponse.json({
       success: true,
-      data: customer,
+      data: {
+        ...customer,
+        name: buildCustomerName(customer),
+      },
     });
   } catch (error) {
     console.error('Error updating customer:', error);

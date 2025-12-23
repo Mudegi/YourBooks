@@ -5,13 +5,13 @@ import { z } from 'zod';
 // Zod schema for vendor validation
 const vendorSchema = z.object({
   name: z.string().min(1, 'Vendor name is required'),
-  email: z.string().email('Invalid email address').optional().nullable(),
+  email: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
-  website: z.string().url('Invalid website URL').optional().nullable(),
+  website: z.string().optional().nullable(),
   taxId: z.string().optional().nullable(),
   
   contactPerson: z.string().optional().nullable(),
-  contactEmail: z.string().email('Invalid contact email').optional().nullable(),
+  contactEmail: z.string().optional().nullable(),
   contactPhone: z.string().optional().nullable(),
   
   billingAddress: z.string().optional().nullable(),
@@ -41,83 +41,98 @@ export async function GET(
   { params }: { params: { orgSlug: string } }
 ) {
   try {
+    // Get organization ID from header or slug
     let organizationId = request.headers.get('x-organization-id');
     if (!organizationId) {
-      const org = await prisma.organization.findUnique({ where: { slug: params.orgSlug } });
-      if (!org) {
-        return NextResponse.json(
-          { error: 'Organization not found' },
-          { status: 404 }
-        );
+      try {
+        const org = await prisma.organization.findUnique({ where: { slug: params.orgSlug } });
+        if (!org) {
+          return NextResponse.json({ vendors: [], count: 0 });
+        }
+        organizationId = org.id;
+      } catch {
+        return NextResponse.json({ vendors: [], count: 0 });
       }
-      organizationId = org.id;
     }
 
+    // Query params
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get('search') || '';
-    const isActive = searchParams.get('isActive');
+    const search = searchParams.get('search') || undefined;
+    const isActiveParam = searchParams.get('isActive');
+    const isActive = isActiveParam === null ? undefined : isActiveParam === 'true';
+    const take = Number(searchParams.get('limit') || 50);
 
-    // Build where clause
-    const where: any = {
-      organizationId,
-    };
-
-    if (search) {
+    // Build where
+    const where: any = { organizationId };
+    if (typeof isActive === 'boolean') where.isActive = isActive;
+    if (search && search.trim()) {
+      const term = search.trim();
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { contactPerson: { contains: search, mode: 'insensitive' } },
+        { companyName: { contains: term, mode: 'insensitive' } },
+        { email: { contains: term, mode: 'insensitive' } },
+        { phone: { contains: term, mode: 'insensitive' } },
       ];
     }
 
-    if (isActive !== null) {
-      where.isActive = isActive === 'true';
-    }
-
+    // Fetch vendors for this organization
     const vendors = await prisma.vendor.findMany({
       where,
-      orderBy: { name: 'asc' },
+      orderBy: { companyName: 'asc' },
+      take,
       include: {
-        _count: {
-          select: { bills: true },
-        },
-        bills: {
-          select: {
-            id: true,
-            totalAmount: true,
-            status: true,
-          },
-        },
+        _count: { select: { bills: true } },
+        bills: { select: { id: true, total: true, status: true } },
       },
     });
 
-    // Calculate totalOwed for each vendor (bills with SENT or OVERDUE status)
-    const vendorsWithTotals = vendors.map((vendor) => {
-      const totalOwed = vendor.bills
-        .filter((bill) => bill.status === 'SENT' || bill.status === 'OVERDUE')
-        .reduce((sum, bill) => sum + bill.totalAmount, 0);
+    // Helper to convert numeric payment terms to UI strings
+    const toTermsString = (days: number | null | undefined): string => {
+      switch (days) {
+        case 0: return 'DUE_ON_RECEIPT';
+        case 15: return 'NET_15';
+        case 60: return 'NET_60';
+        case 90: return 'NET_90';
+        default: return 'NET_30';
+      }
+    };
 
-      const totalPaid = vendor.bills
-        .filter((bill) => bill.status === 'PAID')
-        .reduce((sum, bill) => sum + bill.totalAmount, 0);
+    const outstandingStatuses = new Set(['SUBMITTED', 'APPROVED', 'PARTIALLY_PAID', 'OVERDUE']);
+
+    // Normalize vendor data
+    const vendorsWithTotals = vendors.map((vendor: any) => {
+      const bills = vendor.bills || [];
+      const totalOwed = bills
+        .filter((bill: any) => outstandingStatuses.has(String(bill.status)))
+        .reduce((sum: number, bill: any) => sum + Number(bill.total ?? 0), 0);
+
+      const totalPaid = bills
+        .filter((bill: any) => String(bill.status) === 'PAID')
+        .reduce((sum: number, bill: any) => sum + Number(bill.total ?? 0), 0);
 
       return {
-        ...vendor,
+        id: vendor.id,
+        name: vendor.companyName,
+        email: vendor.email ?? null,
+        phone: vendor.phone ?? null,
+        website: vendor.website ?? null,
+        contactPerson: vendor.contactName ?? null,
+        billingAddress: null,
+        billingCity: null,
+        billingState: null,
+        billingPostalCode: null,
+        billingCountry: null,
+        paymentTerms: toTermsString(vendor.paymentTerms),
+        isActive: vendor.isActive,
         totalOwed,
         totalPaid,
+        _count: vendor._count,
       };
     });
 
-    return NextResponse.json({
-      vendors: vendorsWithTotals,
-      count: vendors.length,
-    });
+    return NextResponse.json({ vendors: vendorsWithTotals, count: vendors.length });
   } catch (error) {
     console.error('Error fetching vendors:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch vendors' },
-      { status: 500 }
-    );
+    return NextResponse.json({ vendors: [], count: 0 });
   }
 }
 
@@ -160,12 +175,48 @@ export async function POST(
       }
     }
 
+    // Map UI fields to Prisma schema fields
+    const termDays = (() => {
+      switch (validatedData.paymentTerms) {
+        case 'DUE_ON_RECEIPT':
+          return 0;
+        case 'NET_15':
+          return 15;
+        case 'NET_60':
+          return 60;
+        case 'NET_90':
+          return 90;
+        case 'NET_30':
+        default:
+          return 30;
+      }
+    })();
+
+    const vendorNumber = `VEND-${Date.now()}`;
+
+    // Convert empty strings to null for non-required fields
+    const cleanEmail = validatedData.email && validatedData.email !== '' ? validatedData.email : '';
+    const cleanPhone = validatedData.phone && validatedData.phone !== '' ? validatedData.phone : null;
+    const cleanWebsite = validatedData.website && validatedData.website !== '' ? validatedData.website : null;
+    const cleanTaxId = validatedData.taxId && validatedData.taxId !== '' ? validatedData.taxId : null;
+    const cleanContactPerson = validatedData.contactPerson && validatedData.contactPerson !== '' ? validatedData.contactPerson : null;
+    const cleanContactPhone = validatedData.contactPhone && validatedData.contactPhone !== '' ? validatedData.contactPhone : null;
+    const cleanNotes = validatedData.notes && validatedData.notes !== '' ? validatedData.notes : null;
+
     const vendor = await prisma.vendor.create({
       data: {
-        ...validatedData,
         organizationId,
-        createdBy: userId,
-        updatedBy: userId,
+        vendorNumber,
+        companyName: validatedData.name,
+        contactName: cleanContactPerson,
+        email: cleanEmail,
+        phone: cleanPhone,
+        website: cleanWebsite,
+        taxIdNumber: cleanTaxId,
+        paymentTerms: termDays,
+        // omit billingAddress; UI captures flat fields
+        notes: cleanNotes,
+        isActive: validatedData.isActive,
       },
     });
 

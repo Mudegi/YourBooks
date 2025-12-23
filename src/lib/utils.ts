@@ -17,14 +17,15 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function formatCurrency(
   amount: number | string,
-  currency: string = 'USD',
+  currency?: string,
   locale: string = 'en-US'
 ): string {
   const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  const code = currency || (typeof window !== 'undefined' ? (localStorage.getItem('orgCurrency') || 'USD') : 'USD');
 
   return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency,
+    currency: code,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(numAmount);

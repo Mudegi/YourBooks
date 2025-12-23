@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { useOrganization } from '@/hooks/useOrganization';
+import { formatCurrency } from '@/lib/currency';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -53,6 +55,7 @@ interface AgingSummary {
 export default function AgedPayablesPage() {
   const params = useParams();
   const orgSlug = params.orgSlug as string;
+  const { currency } = useOrganization();
 
   const [agingData, setAgingData] = useState<VendorAging[]>([]);
   const [summary, setSummary] = useState<AgingSummary | null>(null);
@@ -307,22 +310,22 @@ export default function AgedPayablesPage() {
                         </Link>
                       </td>
                       <td className="py-3 px-2 text-right text-green-600">
-                        {vendor.current > 0 ? `$${vendor.current.toFixed(2)}` : '-'}
+                        {vendor.current > 0 ? formatCurrency(vendor.current, currency) : '-'}
                       </td>
                       <td className="py-3 px-2 text-right text-yellow-600">
-                        {vendor.days1to30 > 0 ? `$${vendor.days1to30.toFixed(2)}` : '-'}
+                        {vendor.days1to30 > 0 ? formatCurrency(vendor.days1to30, currency) : '-'}
                       </td>
                       <td className="py-3 px-2 text-right text-orange-600">
-                        {vendor.days31to60 > 0 ? `$${vendor.days31to60.toFixed(2)}` : '-'}
+                        {vendor.days31to60 > 0 ? formatCurrency(vendor.days31to60, currency) : '-'}
                       </td>
                       <td className="py-3 px-2 text-right text-red-600">
-                        {vendor.days61to90 > 0 ? `$${vendor.days61to90.toFixed(2)}` : '-'}
+                        {vendor.days61to90 > 0 ? formatCurrency(vendor.days61to90, currency) : '-'}
                       </td>
                       <td className="py-3 px-2 text-right text-red-800 font-medium">
-                        {vendor.days90plus > 0 ? `$${vendor.days90plus.toFixed(2)}` : '-'}
+                        {vendor.days90plus > 0 ? formatCurrency(vendor.days90plus, currency) : '-'}
                       </td>
                       <td className="py-3 px-2 text-right font-bold">
-                        ${vendor.totalOutstanding.toFixed(2)}
+                        {formatCurrency(vendor.totalOutstanding, currency)}
                       </td>
                     </tr>
                   ))}
@@ -331,22 +334,22 @@ export default function AgedPayablesPage() {
                     <tr className="border-t-2 border-gray-300 bg-gray-50 font-bold">
                       <td className="py-3 px-2">TOTAL</td>
                       <td className="py-3 px-2 text-right text-green-600">
-                        ${summary.current.toFixed(2)}
+                        {formatCurrency(summary.current, currency)}
                       </td>
                       <td className="py-3 px-2 text-right text-yellow-600">
-                        ${summary.days1to30.toFixed(2)}
+                        {formatCurrency(summary.days1to30, currency)}
                       </td>
                       <td className="py-3 px-2 text-right text-orange-600">
-                        ${summary.days31to60.toFixed(2)}
+                        {formatCurrency(summary.days31to60, currency)}
                       </td>
                       <td className="py-3 px-2 text-right text-red-600">
-                        ${summary.days61to90.toFixed(2)}
+                        {formatCurrency(summary.days61to90, currency)}
                       </td>
                       <td className="py-3 px-2 text-right text-red-800">
-                        ${summary.days90plus.toFixed(2)}
+                        {formatCurrency(summary.days90plus, currency)}
                       </td>
                       <td className="py-3 px-2 text-right text-blue-600">
-                        ${summary.totalOutstanding.toFixed(2)}
+                        {formatCurrency(summary.totalOutstanding, currency)}
                       </td>
                     </tr>
                   )}
@@ -450,7 +453,7 @@ export default function AgedPayablesPage() {
         <Alert variant="warning">
           <div className="font-semibold">Payment Priority Alert</div>
           <p className="text-sm mt-1">
-            You have ${(summary.days61to90 + summary.days90plus).toFixed(2)} in payables over 60 days old.
+            You have {formatCurrency(summary.days61to90 + summary.days90plus, currency)} in payables over 60 days old.
             Consider prioritizing payments for these overdue accounts to maintain good vendor relationships.
           </p>
         </Alert>
@@ -464,7 +467,7 @@ export default function AgedPayablesPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-gray-700">
-              Total outstanding payables: <span className="font-bold">${summary.totalOutstanding.toFixed(2)}</span>
+              Total outstanding payables: <span className="font-bold">{formatCurrency(summary.totalOutstanding, currency)}</span>
             </p>
             <p className="text-sm text-gray-700 mt-2">
               This represents your current accounts payable balance. Managing payment timing helps optimize

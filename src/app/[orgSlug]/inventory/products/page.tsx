@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, ArrowLeft } from 'lucide-react';
 
 interface Product {
   id: string;
@@ -29,6 +29,7 @@ interface Product {
 
 export default function ProductsPage() {
   const params = useParams();
+  const router = useRouter();
   const orgSlug = params?.orgSlug as string;
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,6 +56,9 @@ export default function ProductsPage() {
 
   return (
     <div className="p-6">
+      <button onClick={() => router.back()} className="flex items-center gap-2 text-blue-600 mb-4 hover:text-blue-800">
+        <ArrowLeft className="w-4 h-4" /> Back
+      </button>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold">Products</h1>
