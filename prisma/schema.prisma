@@ -364,7 +364,8 @@ model User {
   organizations              OrganizationUser[]
   projectsManaged            Project[]
   projectTasks               ProjectTask[]
-  qualityHoldsReleased       QualityHold[]
+  qualityHoldsCreated        QualityHold[]          @relation("QualityHoldCreatedBy")
+  qualityHoldsReleased       QualityHold[]          @relation("QualityHoldReleasedBy")
   qualityInspections         QualityInspection[]
   createdRecurringExecutions RecurringExecution[]
   createdRecurringTemplates  RecurringTemplate[]
@@ -3503,20 +3504,27 @@ model QualityHold {
   inspectionId      String?
   productId         String
   lotNumber         String?
+  batchNumber       String?
+  serialNumber      String?
   quantity          Decimal             @db.Decimal(12, 4)
   warehouseId       String?
+  holdType          HoldType            @default(QUALITY)
   holdReason        String
   status            HoldStatus          @default(ACTIVE)
   dispositionAction DispositionAction?
   dispositionNotes  String?
   releasedById      String?
   releasedAt        DateTime?
+  createdById       String
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
+  metadata          Json?               // For UNBS case numbers, regulatory references
+  attachments       Json?               // File attachments (COA, photos, etc.)
   inspection        QualityInspection?  @relation(fields: [inspectionId], references: [id])
   organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   product           Product             @relation(fields: [productId], references: [id])
-  releasedBy        User?               @relation(fields: [releasedById], references: [id])
+  releasedBy        User?               @relation("QualityHoldReleasedBy", fields: [releasedById], references: [id])
+  createdBy         User                @relation("QualityHoldCreatedBy", fields: [createdById], references: [id])
   warehouse         InventoryWarehouse? @relation(fields: [warehouseId], references: [id])
 
   @@unique([organizationId, holdNumber])
@@ -4728,6 +4736,15 @@ enum InspectionPriority {
   NORMAL
   HIGH
   URGENT
+}
+
+enum HoldType {
+  QUALITY
+  SAFETY
+  REGULATORY
+  SUPPLIER_RECALL
+  CUSTOMER_COMPLAINT
+  INTERNAL_REVIEW
 }
 
 enum HoldStatus {

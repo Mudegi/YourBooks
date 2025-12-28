@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { hasPermission, Permission } from '@/lib/permissions';
+import { enqueueNotification } from '@/lib/notifications';
 
 export async function POST(
   request: NextRequest,
@@ -43,7 +44,10 @@ export async function POST(
       lotNumber,
       batchNumber,
       serialNumber,
+      holdType = 'QUALITY',
       notes,
+      metadata,
+      attachments,
     } = body;
 
     // Validation
@@ -87,44 +91,122 @@ export async function POST(
 
     const holdNumber = `QH-${year}-${String(nextNumber).padStart(4, '0')}`;
 
-    // Create quality hold
-    const qualityHold = await prisma.qualityHold.create({
-      data: {
-        organizationId: organization.id,
-        productId,
-        warehouseId,
-        inspectionId,
-        holdNumber,
-        quantity,
-        reason,
-        lotNumber,
-        batchNumber,
-        serialNumber,
-        status: 'ACTIVE',
-        notes,
-      },
-      include: {
-        product: {
-          select: {
-            id: true,
-            name: true,
-            sku: true,
+    // Create quality hold and update inventory in transaction
+    const qualityHold = await prisma.$transaction(async (tx) => {
+      // Create the hold
+      const hold = await tx.qualityHold.create({
+        data: {
+          organizationId: organization.id,
+          productId,
+          warehouseId,
+          inspectionId,
+          holdNumber,
+          quantity,
+          holdType,
+          holdReason: reason,
+          lotNumber,
+          batchNumber,
+          serialNumber,
+          status: 'ACTIVE',
+          dispositionNotes: notes,
+          createdById: payload.userId,
+          metadata,
+          attachments,
+        },
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              sku: true,
+            },
+          },
+          warehouse: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
         },
-        warehouse: {
-          select: {
-            id: true,
-            name: true,
-          },
+      });
+
+      // Update inventory to reduce available quantity
+      const inventory = await tx.inventoryItem.findFirst({
+        where: {
+          productId,
+          warehouseLocation: warehouseId ? undefined : 'Main', // Use warehouse if specified, otherwise Main
+          ...(warehouseId && { warehouseId }),
         },
-        inspection: {
-          select: {
-            id: true,
-            inspectionNumber: true,
+      });
+
+      if (inventory) {
+        const currentAvailable = Number(inventory.quantityAvailable);
+        const heldQuantity = Number(quantity);
+        const newAvailable = Math.max(0, currentAvailable - heldQuantity);
+
+        await tx.inventoryItem.update({
+          where: { id: inventory.id },
+          data: {
+            quantityAvailable: newAvailable,
           },
-        },
-      },
+        });
+      }
+
+      return hold;
     });
+
+    // Send notifications for high-priority holds
+    const isHighPriority = holdType === 'SAFETY' || holdType === 'REGULATORY' || holdType === 'SUPPLIER_RECALL';
+
+    if (isHighPriority) {
+      try {
+        // Get warehouse manager and finance head emails
+        const warehouseManager = await prisma.user.findFirst({
+          where: {
+            organizations: {
+              some: {
+                organizationId: organization.id,
+                role: {
+                  permissions: {
+                    some: {
+                      permission: Permission.MANAGE_QUALITY_HOLDS
+                    }
+                  }
+                }
+              }
+            }
+          },
+          select: { email: true, name: true }
+        });
+
+        if (warehouseManager?.email) {
+          await enqueueNotification({
+            type: 'email',
+            to: warehouseManager.email,
+            subject: `High Priority Quality Hold: ${qualityHold.holdNumber}`,
+            body: `A high priority quality hold has been placed:
+
+Hold: ${qualityHold.holdNumber}
+Product: ${qualityHold.product.name} (${qualityHold.product.sku})
+Type: ${holdType}
+Reason: ${reason}
+Quantity: ${quantity}
+
+Please review immediately.`,
+          });
+        }
+      } catch (notificationError) {
+        console.error('Error sending hold notification:', notificationError);
+        // Don't fail the API call if notification fails
+      }
+    }
 
     return NextResponse.json({
       success: true,
