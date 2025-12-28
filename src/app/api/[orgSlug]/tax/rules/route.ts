@@ -38,8 +38,11 @@ export async function POST(
       jurisdictionId,
       name,
       taxType,
+      ruleType,
       rate,
-      isPercentage = true,
+      applicableOn = 'BOTH',
+      productCategory,
+      customerType,
       effectiveFrom,
       effectiveTo,
       minAmount,
@@ -47,14 +50,16 @@ export async function POST(
       calculationFormula,
       isCompound = false,
       compoundSequence,
+      parentRuleId,
+      priority = 1,
       isActive = true,
       notes,
     } = body;
 
     // Validation
-    if (!jurisdictionId || !name || !taxType || rate === undefined || !effectiveFrom) {
+    if (!jurisdictionId || !name || !taxType || !ruleType || rate === undefined || !effectiveFrom) {
       return NextResponse.json(
-        { error: 'Missing required fields: jurisdictionId, name, taxType, rate, effectiveFrom' },
+        { error: 'Missing required fields: jurisdictionId, name, taxType, ruleType, rate, effectiveFrom' },
         { status: 400 }
       );
     }
@@ -75,15 +80,20 @@ export async function POST(
         jurisdictionId,
         name,
         taxType,
+        ruleType,
         rate,
-        isPercentage,
+        applicableOn,
+        productCategory,
+        customerType,
         effectiveFrom: new Date(effectiveFrom),
         effectiveTo: effectiveTo ? new Date(effectiveTo) : null,
-        minAmount,
-        maxAmount,
+        minimumAmount: minAmount,
+        maximumAmount: maxAmount,
         calculationFormula,
         isCompound,
         compoundSequence,
+        parentRuleId,
+        priority,
         isActive,
         notes,
       },

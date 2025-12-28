@@ -9,25 +9,35 @@ import { Scale, DollarSign, Package, Percent, Plus } from 'lucide-react';
 interface TaxRule {
   id: string;
   name: string;
-  ruleType: string;
+  ruleType: 'STANDARD_RATE' | 'REDUCED_RATE' | 'ZERO_RATE' | 'EXEMPTION' | 'REVERSE_CHARGE' | 'COMPOUND' | 'WITHHOLDING' | 'CUSTOM';
   priority: number;
   jurisdiction: { name: string; code: string };
+  taxType: string;
   rate?: number;
+  applicableOn: string;
+  productCategory?: string;
+  customerType?: string;
   isActive: boolean;
   effectiveFrom: string;
   effectiveTo?: string;
+  isCompound: boolean;
+  minimumAmount?: number;
+  maximumAmount?: number;
 }
 
 const SAMPLE_RULES: TaxRule[] = [
   {
-    id: 'sample-rate',
+    id: 'sample-standard',
     name: 'Standard VAT 20%',
-    ruleType: 'RATE_BASED',
+    ruleType: 'STANDARD_RATE',
     priority: 1,
     jurisdiction: { name: 'United Kingdom', code: 'GB' },
+    taxType: 'VAT',
     rate: 20,
+    applicableOn: 'SALES',
     isActive: true,
     effectiveFrom: new Date('2023-01-01').toISOString(),
+    isCompound: false,
   },
   {
     id: 'sample-reduced',
@@ -35,9 +45,67 @@ const SAMPLE_RULES: TaxRule[] = [
     ruleType: 'REDUCED_RATE',
     priority: 2,
     jurisdiction: { name: 'United Kingdom', code: 'GB' },
+    taxType: 'VAT',
     rate: 5,
+    applicableOn: 'SALES',
+    productCategory: 'Food',
     isActive: true,
     effectiveFrom: new Date('2023-01-01').toISOString(),
+    isCompound: false,
+  },
+  {
+    id: 'sample-zero',
+    name: 'Zero Rate Exports',
+    ruleType: 'ZERO_RATE',
+    priority: 3,
+    jurisdiction: { name: 'United Kingdom', code: 'GB' },
+    taxType: 'VAT',
+    rate: 0,
+    applicableOn: 'SALES',
+    isActive: true,
+    effectiveFrom: new Date('2023-01-01').toISOString(),
+    isCompound: false,
+  },
+  {
+    id: 'sample-exempt',
+    name: 'Financial Services Exemption',
+    ruleType: 'EXEMPTION',
+    priority: 4,
+    jurisdiction: { name: 'United Kingdom', code: 'GB' },
+    taxType: 'VAT',
+    applicableOn: 'SALES',
+    productCategory: 'Financial Services',
+    isActive: true,
+    effectiveFrom: new Date('2023-01-01').toISOString(),
+    isCompound: false,
+  },
+  {
+    id: 'sample-reverse',
+    name: 'EU B2B Reverse Charge',
+    ruleType: 'REVERSE_CHARGE',
+    priority: 5,
+    jurisdiction: { name: 'United Kingdom', code: 'GB' },
+    taxType: 'VAT',
+    rate: 20,
+    applicableOn: 'PURCHASES',
+    customerType: 'Business',
+    isActive: true,
+    effectiveFrom: new Date('2023-01-01').toISOString(),
+    isCompound: false,
+  },
+  {
+    id: 'sample-compound',
+    name: 'Luxury Goods: VAT + Luxury Tax',
+    ruleType: 'COMPOUND',
+    priority: 6,
+    jurisdiction: { name: 'France', code: 'FR' },
+    taxType: 'VAT',
+    rate: 20,
+    applicableOn: 'SALES',
+    productCategory: 'Luxury Goods',
+    isActive: true,
+    effectiveFrom: new Date('2023-01-01').toISOString(),
+    isCompound: true,
   },
 ];
 
@@ -77,20 +145,28 @@ export default function TaxRulesPage() {
       ? rules.filter(r => r.rate).reduce((sum, r) => sum + (r.rate || 0), 0) /
         rules.filter(r => r.rate).length
       : 0;
-  const rateBasedRules = rules.filter(r => r.ruleType === 'RATE_BASED').length;
+  const exemptionRules = rules.filter(r => r.ruleType === 'EXEMPTION').length;
+  const reverseChargeRules = rules.filter(r => r.ruleType === 'REVERSE_CHARGE').length;
+  const compoundRules = rules.filter(r => r.isCompound).length;
 
   const getRuleTypeColor = (type: string) => {
     switch (type) {
-      case 'RATE_BASED':
+      case 'STANDARD_RATE':
         return 'bg-blue-100 text-blue-800';
-      case 'EXEMPTION':
-        return 'bg-green-100 text-green-800';
       case 'REDUCED_RATE':
         return 'bg-yellow-100 text-yellow-800';
       case 'ZERO_RATE':
         return 'bg-gray-100 text-gray-800';
+      case 'EXEMPTION':
+        return 'bg-green-100 text-green-800';
       case 'REVERSE_CHARGE':
         return 'bg-purple-100 text-purple-800';
+      case 'COMPOUND':
+        return 'bg-orange-100 text-orange-800';
+      case 'WITHHOLDING':
+        return 'bg-red-100 text-red-800';
+      case 'CUSTOM':
+        return 'bg-indigo-100 text-indigo-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -143,8 +219,8 @@ export default function TaxRulesPage() {
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Average Rate</p>
-              <p className="text-2xl font-bold">{avgRate.toFixed(2)}%</p>
+              <p className="text-sm text-gray-500">Exemptions</p>
+              <p className="text-2xl font-bold">{exemptionRules}</p>
             </div>
             <Percent className="h-8 w-8 text-purple-500" />
           </div>
@@ -152,8 +228,8 @@ export default function TaxRulesPage() {
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Rate-Based Rules</p>
-              <p className="text-2xl font-bold">{rateBasedRules}</p>
+              <p className="text-sm text-gray-500">Reverse Charge</p>
+              <p className="text-2xl font-bold">{reverseChargeRules}</p>
             </div>
             <DollarSign className="h-8 w-8 text-yellow-500" />
           </div>
@@ -176,7 +252,16 @@ export default function TaxRulesPage() {
                   Rule Type
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Tax Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Rate
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Applicable On
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Product Category
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Priority
@@ -187,15 +272,12 @@ export default function TaxRulesPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Effective From
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Effective To
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {rules.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                     No tax rules found. Create your first tax rule.
                   </td>
                 </tr>
@@ -223,9 +305,18 @@ export default function TaxRulesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm text-gray-900">{rule.taxType}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-medium text-gray-900">
                         {rule.rate ? `${rule.rate.toFixed(2)}%` : '—'}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm text-gray-900">{rule.applicableOn}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm text-gray-500">{rule.productCategory || '—'}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm text-gray-900">{rule.priority}</span>
@@ -243,9 +334,6 @@ export default function TaxRulesPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {new Date(rule.effectiveFrom).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {rule.effectiveTo ? new Date(rule.effectiveTo).toLocaleDateString() : '—'}
                     </td>
                   </tr>
                 ))

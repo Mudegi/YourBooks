@@ -10,17 +10,21 @@ interface TaxExemption {
   id: string;
   exemptionNumber?: string;
   certificateNumber?: string;
+  issuingAuthority?: string;
+  issuedDate?: string;
   entityType?: string;
   entityId?: string;
   entityName?: string;
   customer?: { name: string; email: string };
-  jurisdiction?: { name: string; code: string };
+  taxRule?: { name: string; jurisdiction?: { name: string; code: string } };
   exemptionType: string;
   exemptionRate?: number;
   isActive: boolean;
   validFrom: string;
   validTo?: string;
   documentUrl?: string;
+  efrisReason?: string;
+  reason?: string;
   createdAt?: string;
 }
 
@@ -28,30 +32,58 @@ const SAMPLE_EXEMPTIONS: TaxExemption[] = [
   {
     id: 'sample-ex-1',
     exemptionNumber: 'EX-2024-1001',
-    certificateNumber: 'CERT-7788',
-    entityType: 'CUSTOMER',
-    entityId: 'CUST-001',
-    entityName: 'Acme Manufacturing',
-    exemptionType: 'FULL',
+    certificateNumber: 'URA-WHT-2024-001',
+    issuingAuthority: 'URA',
+    issuedDate: new Date('2024-01-15').toISOString(),
+    entityType: 'VENDOR',
+    entityId: 'VEND-001',
+    entityName: 'Kampala Medical Supplies Ltd',
+    exemptionType: 'WHT_EXEMPTION',
     exemptionRate: 0,
     isActive: true,
-    validFrom: new Date('2024-01-01').toISOString(),
+    validFrom: new Date('2024-01-15').toISOString(),
     validTo: new Date(Date.now() + 1000 * 60 * 60 * 24 * 90).toISOString(),
-    jurisdiction: { name: 'California', code: 'US-CA' },
+    taxRule: { name: 'WHT 6% Professional Services', jurisdiction: { name: 'Uganda', code: 'UG' } },
+    efrisReason: 'MEDICAL_SUPPLIES',
+    reason: 'Supply of medical goods and services',
+    documentUrl: '/documents/exemptions/ura-wht-2024-001.pdf',
   },
   {
     id: 'sample-ex-2',
     exemptionNumber: 'EX-2023-4422',
     certificateNumber: 'CERT-8899',
+    issuingAuthority: 'IRS',
+    issuedDate: new Date('2023-06-01').toISOString(),
     entityType: 'CUSTOMER',
     entityId: 'CUST-002',
-    entityName: 'Civic Health',
-    exemptionType: 'PARTIAL',
-    exemptionRate: 5,
+    entityName: 'Civic Health NGO',
+    exemptionType: 'VAT_EXEMPTION',
+    exemptionRate: 0,
     isActive: false,
-    validFrom: new Date('2023-01-01').toISOString(),
+    validFrom: new Date('2023-06-01').toISOString(),
     validTo: new Date('2023-12-31').toISOString(),
-    jurisdiction: { name: 'Texas', code: 'US-TX' },
+    taxRule: { name: 'VAT Exemption for NGOs', jurisdiction: { name: 'California', code: 'US-CA' } },
+    efrisReason: 'NONPROFIT',
+    reason: 'Non-profit organization exemption',
+  },
+  {
+    id: 'sample-ex-3',
+    exemptionNumber: 'EX-2024-2001',
+    certificateNumber: 'KRA-VAT-2024-045',
+    issuingAuthority: 'KRA',
+    issuedDate: new Date('2024-03-01').toISOString(),
+    entityType: 'CUSTOMER',
+    entityId: 'CUST-003',
+    entityName: 'Nairobi Manufacturing Corp',
+    exemptionType: 'PARTIAL',
+    exemptionRate: 8,
+    isActive: true,
+    validFrom: new Date('2024-03-01').toISOString(),
+    validTo: new Date(Date.now() + 1000 * 60 * 60 * 24 * 60).toISOString(),
+    taxRule: { name: 'Manufacturing VAT Reduced Rate', jurisdiction: { name: 'Kenya', code: 'KE' } },
+    efrisReason: 'MANUFACTURING',
+    reason: 'Manufacturing exemption - reduced rate',
+    documentUrl: '/documents/exemptions/kra-vat-2024-045.pdf',
   },
 ];
 
@@ -62,9 +94,25 @@ export default function TaxExemptionsPage() {
   const [exemptions, setExemptions] = useState<TaxExemption[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [healthCheck, setHealthCheck] = useState<any>(null);
+  const [showHealthCheck, setShowHealthCheck] = useState(false);
+
   useEffect(() => {
     fetchExemptions();
+    fetchHealthCheck();
   }, [orgSlug]);
+
+  const fetchHealthCheck = async () => {
+    try {
+      const response = await fetch(`/api/${orgSlug}/tax/exemptions/health`);
+      if (response.ok) {
+        const data = await response.json();
+        setHealthCheck(data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching health check:', error);
+    }
+  };
 
   const fetchExemptions = async () => {
     setLoading(true);
@@ -203,6 +251,78 @@ export default function TaxExemptionsPage() {
         </Card>
       </div>
 
+      {/* Health Check Section */}
+      <div className="mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">Certificate Health Check</h2>
+          <Button
+            onClick={() => setShowHealthCheck(!showHealthCheck)}
+            variant="outline"
+            size="sm"
+          >
+            {showHealthCheck ? 'Hide' : 'Show'} Health Check
+          </Button>
+        </div>
+
+        {showHealthCheck && healthCheck && (
+          <div className="bg-white p-6 rounded-lg shadow mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{healthCheck.activeExemptions}</div>
+                <div className="text-sm text-gray-500">Active</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-yellow-600">{healthCheck.expiringSoon}</div>
+                <div className="text-sm text-gray-500">Expiring Soon</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-600">{healthCheck.expired}</div>
+                <div className="text-sm text-gray-500">Expired</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">{healthCheck.missingCertificates}</div>
+                <div className="text-sm text-gray-500">Missing Docs</div>
+              </div>
+            </div>
+
+            {healthCheck.alerts && healthCheck.alerts.length > 0 && (
+              <div>
+                <h3 className="text-md font-semibold mb-2">Alerts</h3>
+                <div className="space-y-2">
+                  {healthCheck.alerts.slice(0, 5).map((alert: any, index: number) => (
+                    <div
+                      key={index}
+                      className={`p-3 rounded-lg border-l-4 ${
+                        alert.severity === 'CRITICAL' ? 'border-red-500 bg-red-50' :
+                        alert.severity === 'HIGH' ? 'border-orange-500 bg-orange-50' :
+                        alert.severity === 'MEDIUM' ? 'border-yellow-500 bg-yellow-50' :
+                        'border-blue-500 bg-blue-50'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-medium">{alert.exemptionNumber}</div>
+                          <div className="text-sm text-gray-600">{alert.entityName}</div>
+                          <div className="text-sm">{alert.message}</div>
+                        </div>
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          alert.severity === 'CRITICAL' ? 'bg-red-100 text-red-800' :
+                          alert.severity === 'HIGH' ? 'bg-orange-100 text-orange-800' :
+                          alert.severity === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {alert.severity}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Tax Exemptions Table */}
       <Card>
         <div className="overflow-x-auto">
@@ -213,13 +333,16 @@ export default function TaxExemptionsPage() {
                   Certificate #
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Issuing Authority
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Entity
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Jurisdiction
+                  Exemption Type
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Exemption Type
+                  Jurisdiction
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -238,7 +361,7 @@ export default function TaxExemptionsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {exemptions.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                     No tax exemptions found. Create your first exemption certificate.
                   </td>
                 </tr>
@@ -254,6 +377,9 @@ export default function TaxExemptionsPage() {
                         {exemption.certificateNumber || exemption.exemptionNumber || '—'}
                       </span>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm text-gray-900">{exemption.issuingAuthority || '—'}</span>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900">
                         {exemption.entityName || exemption.customer?.name || exemption.entityId || '—'}
@@ -265,17 +391,17 @@ export default function TaxExemptionsPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{exemption.jurisdiction?.name || '—'}</div>
-                      <div className="text-sm text-gray-500">{exemption.jurisdiction?.code || ''}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getExemptionTypeColor(
                           exemption.exemptionType
                         )}`}
                       >
-                        {exemption.exemptionType}
+                        {exemption.exemptionType.replace(/_/g, ' ')}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{exemption.taxRule?.jurisdiction?.name || '—'}</div>
+                      <div className="text-sm text-gray-500">{exemption.taxRule?.jurisdiction?.code || ''}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span

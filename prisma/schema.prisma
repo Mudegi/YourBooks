@@ -581,6 +581,8 @@ model Customer {
   isActive                 Boolean                @default(true)
   region                   String?
   taxCategory              String?
+  taxExempt                Boolean         @default(false) // New: Tax exemption status
+  taxExemptionReason       String?         // New: Reason for tax exemption
   defaultRevenueAccountId  String?
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
@@ -3665,17 +3667,21 @@ model TaxRule {
   organizationId     String
   name               String
   jurisdictionId     String?
-  taxType            String
+  taxType            TaxRuleType      // Changed from String to enum
   taxRate            Decimal          @db.Decimal(5, 2)
-  applicableOn       String
+  ruleType           TaxRuleType      // New: EXEMPTION, REVERSE_CHARGE, etc.
+  applicableOn       String           // SALES, PURCHASES, BOTH
   productCategory    String?
+  customerType       String?          // New: Individual, Business, etc.
   minimumAmount      Decimal?         @db.Decimal(19, 4)
   maximumAmount      Decimal?         @db.Decimal(19, 4)
   effectiveFrom      DateTime
   effectiveTo        DateTime?
   isCompound         Boolean          @default(false)
-  compoundSequence   Int?
+  compoundSequence   Int?             // Order in compound rules
+  parentRuleId       String?          // For compound rule relationships
   calculationFormula String?
+  priority           Int              @default(1) // New: Priority for rule evaluation
   isActive           Boolean          @default(true)
   notes              String?
   createdAt          DateTime         @default(now())
@@ -3684,9 +3690,12 @@ model TaxRule {
   exemptions         TaxExemption[]
   jurisdiction       TaxJurisdiction? @relation(fields: [jurisdictionId], references: [id])
   organization       Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parentRule         TaxRule?         @relation("CompoundRules", fields: [parentRuleId], references: [id])
+  childRules         TaxRule[]        @relation("CompoundRules")
 
   @@index([organizationId, taxType])
   @@index([effectiveFrom, effectiveTo])
+  @@index([ruleType, priority])
 }
 
 model TaxExemption {
@@ -3699,9 +3708,14 @@ model TaxExemption {
   exemptionType     String
   exemptionRate     Decimal?     @db.Decimal(5, 2)
   certificateNumber String?
+  issuingAuthority  String?      // New: URA, IRS, etc.
+  issuedDate        DateTime?    // New: When certificate was issued
   validFrom         DateTime
-  validTo           DateTime
-  reason            String?
+  validTo           DateTime?    // Made optional
+  documentUrl       String?      // New: URL to uploaded PDF certificate
+  documentPath      String?      // New: File system path
+  efrisReason       String?      // New: EFRIS exemption reason code
+  reason            String?      // Human readable reason
   isActive          Boolean      @default(true)
   notes             String?
   createdAt         DateTime     @default(now())
@@ -3712,6 +3726,8 @@ model TaxExemption {
   @@unique([organizationId, exemptionNumber])
   @@index([entityType, entityId])
   @@index([validFrom, validTo])
+  @@index([issuingAuthority])
+  @@index([exemptionType])
 }
 
 model LocalizationConfig {
@@ -4236,6 +4252,17 @@ enum TaxType {
   IMPORT_DUTY
   WITHHOLDING
   PAYROLL
+}
+
+enum TaxRuleType {
+  STANDARD_RATE
+  REDUCED_RATE
+  ZERO_RATE
+  EXEMPTION
+  REVERSE_CHARGE
+  COMPOUND
+  WITHHOLDING
+  CUSTOM
 }
 
 enum WHTType {

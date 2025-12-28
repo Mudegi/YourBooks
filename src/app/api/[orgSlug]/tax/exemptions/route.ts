@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { hasPermission, Permission } from '@/lib/permissions';
+import { Prisma } from '@prisma/client';
 
 export async function POST(
   request: NextRequest,
@@ -35,58 +36,79 @@ export async function POST(
 
     const body = await request.json();
     const {
-      jurisdictionId,
+      taxRuleId,
       entityType,
       entityId,
       exemptionType,
+      exemptionNumber,
       certificateNumber,
-      issuedBy,
+      issuingAuthority,
       issuedDate,
       validFrom,
       validTo,
+      documentUrl,
+      documentPath,
+      efrisReason,
+      reason,
+      exemptionRate,
       isActive = true,
       notes,
     } = body;
 
     // Validation
-    if (!jurisdictionId || !entityType || !entityId || !exemptionType || !validFrom) {
+    if (!taxRuleId || !entityType || !entityId || !exemptionType || !validFrom) {
       return NextResponse.json(
-        { error: 'Missing required fields: jurisdictionId, entityType, entityId, exemptionType, validFrom' },
+        { error: 'Missing required fields: taxRuleId, entityType, entityId, exemptionType, validFrom' },
         { status: 400 }
       );
     }
 
-    // Verify jurisdiction exists
-    const jurisdiction = await prisma.taxJurisdiction.findUnique({
-      where: { id: jurisdictionId },
+    // Generate exemption number if not provided
+    const finalExemptionNumber = exemptionNumber || `EX-${Date.now()}`;
+
+    // Verify tax rule exists
+    const taxRule = await prisma.taxRule.findUnique({
+      where: { id: taxRuleId },
     });
 
-    if (!jurisdiction) {
-      return NextResponse.json({ error: 'Tax jurisdiction not found' }, { status: 404 });
+    if (!taxRule) {
+      return NextResponse.json({ error: 'Tax rule not found' }, { status: 404 });
     }
 
     // Create tax exemption
     const taxExemption = await prisma.taxExemption.create({
       data: {
         organizationId: organization.id,
-        jurisdictionId,
+        exemptionNumber: finalExemptionNumber,
+        taxRuleId,
         entityType,
         entityId,
         exemptionType,
+        exemptionRate: exemptionRate ? new Prisma.Decimal(exemptionRate) : null,
         certificateNumber,
-        issuedBy,
+        issuingAuthority,
         issuedDate: issuedDate ? new Date(issuedDate) : null,
         validFrom: new Date(validFrom),
         validTo: validTo ? new Date(validTo) : null,
+        documentUrl,
+        documentPath,
+        efrisReason,
+        reason,
         isActive,
         notes,
       },
       include: {
-        jurisdiction: {
+        taxRule: {
           select: {
             id: true,
             name: true,
-            code: true,
+            jurisdiction: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+              },
+            },
           },
         },
       },
@@ -169,12 +191,18 @@ export async function GET(
     const taxExemptions = await prisma.taxExemption.findMany({
       where,
       include: {
-        jurisdiction: {
+        taxRule: {
           select: {
             id: true,
             name: true,
-            code: true,
-            jurisdictionType: true,
+            jurisdiction: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+                jurisdictionType: true,
+              },
+            },
           },
         },
       },
