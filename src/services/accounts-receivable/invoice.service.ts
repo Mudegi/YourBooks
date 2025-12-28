@@ -7,6 +7,7 @@ import { Decimal } from 'decimal.js';
 import prisma from '@/lib/prisma';
 import { InvoiceStatus, TransactionType, EntryType } from '@prisma/client';
 import DoubleEntryService from '../accounting/double-entry.service';
+import { DocumentSequenceService } from '@/lib/document-sequence.service';
 
 export interface InvoiceTaxLineInput {
   taxType: string;
@@ -30,6 +31,7 @@ export interface InvoiceItemInput {
 
 export interface CreateInvoiceInput {
   organizationId: string;
+  branchId?: string;
   customerId: string;
   invoiceDate: Date;
   dueDate: Date;
@@ -84,7 +86,7 @@ export class InvoiceService {
     const calculations = this.calculateInvoiceTotals(input.items);
 
     // Generate invoice number
-    const invoiceNumber = await this.generateInvoiceNumber(input.organizationId);
+    const invoiceNumber = await this.generateInvoiceNumber(input.organizationId, input.branchId);
 
     // Get account mappings from organization settings
     const accountMappings = await this.getAccountMappings(input.organizationId);
@@ -95,6 +97,7 @@ export class InvoiceService {
       const invoice = await tx.invoice.create({
         data: {
           organizationId: input.organizationId,
+          branchId: input.branchId,
           customerId: input.customerId,
           invoiceNumber,
           invoiceDate: input.invoiceDate,
@@ -400,29 +403,9 @@ export class InvoiceService {
   /**
    * Generate invoice number
    */
-  private static async generateInvoiceNumber(organizationId: string): Promise<string> {
-    const year = new Date().getFullYear();
-    const prefix = 'INV';
-
-    const lastInvoice = await prisma.invoice.findFirst({
-      where: {
-        organizationId,
-        invoiceNumber: {
-          startsWith: `${prefix}-${year}`,
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    let nextNumber = 1;
-    if (lastInvoice) {
-      const lastNumber = parseInt(lastInvoice.invoiceNumber.split('-')[2] || '0');
-      nextNumber = lastNumber + 1;
-    }
-
-    return `${prefix}-${year}-${nextNumber.toString().padStart(4, '0')}`;
+  private static async generateInvoiceNumber(organizationId: string, branchId?: string): Promise<string> {
+    const config = await DocumentSequenceService.getSequenceConfig(organizationId, branchId, 'INVOICE');
+    return DocumentSequenceService.generateDocumentNumber(organizationId, 'INVOICE', branchId, config);
   }
 
   /**

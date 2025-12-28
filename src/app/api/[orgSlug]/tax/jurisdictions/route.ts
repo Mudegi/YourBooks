@@ -39,11 +39,18 @@ export async function POST(
       code,
       jurisdictionType,
       country,
+      countryCode,
       stateProvince,
       countyDistrict,
       city,
+      postalCode,
       postalCodeStart,
       postalCodeEnd,
+      taxAuthority,
+      taxLiabilityAccountId,
+      eInvoiceFormat,
+      requiresEInvoicing,
+      metadata,
       parentJurisdictionId,
       isActive = true,
       notes,
@@ -57,6 +64,22 @@ export async function POST(
       );
     }
 
+    // Validate tax liability account belongs to organization
+    if (taxLiabilityAccountId) {
+      const account = await prisma.chartOfAccount.findFirst({
+        where: {
+          id: taxLiabilityAccountId,
+          organizationId: organization.id,
+        },
+      });
+      if (!account) {
+        return NextResponse.json(
+          { error: 'Tax liability account not found or does not belong to organization' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Create tax jurisdiction
     const taxJurisdiction = await prisma.taxJurisdiction.create({
       data: {
@@ -65,17 +88,31 @@ export async function POST(
         code,
         jurisdictionType,
         country,
+        countryCode,
         stateProvince,
         countyDistrict,
         city,
+        postalCode,
         postalCodeStart,
         postalCodeEnd,
+        taxAuthority,
+        taxLiabilityAccountId,
+        eInvoiceFormat,
+        requiresEInvoicing,
+        metadata,
         parentJurisdictionId,
         isActive,
         notes,
       },
       include: {
         parentJurisdiction: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+        taxLiabilityAccount: {
           select: {
             id: true,
             name: true,
@@ -155,6 +192,13 @@ export async function GET(
           },
         },
         childJurisdictions: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+        taxLiabilityAccount: {
           select: {
             id: true,
             name: true,

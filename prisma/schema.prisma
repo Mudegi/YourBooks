@@ -59,6 +59,7 @@ model Organization {
   departments             Department[]
   discounts               Discount[]
   documents               Document[]
+  documentSequences       DocumentSequence[]
   efrisExcisableList      EFRISExcisableList[]
   eInvoiceConfig          EInvoiceConfig?
   employees               Employee[]
@@ -187,10 +188,31 @@ model Branch {
   transactions         Transaction[]
   vendors              Vendor[]
   workOrders           WorkOrder[]
+  documentSequences    DocumentSequence[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
   @@index([isActive])
+}
+
+model DocumentSequence {
+  id             String           @id @default(cuid())
+  organizationId String
+  branchId       String?
+  documentType   DocumentType
+  prefix         String           @default("")
+  currentNumber  Int              @default(0)
+  year           Int?
+  month          Int?
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  branch         Branch?          @relation(fields: [branchId], references: [id])
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, branchId, documentType, year, month])
+  @@index([organizationId])
+  @@index([branchId])
 }
 
 model Integration {
@@ -468,6 +490,7 @@ model ChartOfAccount {
   debitNoteItems              DebitNoteItem[]
   ledgerEntries               LedgerEntry[]
   billItems                   BillItem[]
+  taxJurisdictions            TaxJurisdiction[]
 
   @@unique([organizationId, code])
   @@index([organizationId, accountType])
@@ -3601,28 +3624,40 @@ model CAPA {
 }
 
 model TaxJurisdiction {
-  id               String           @id @default(cuid())
-  organizationId   String
-  code             String
-  name             String
-  country          String
-  state            String?
-  county           String?
-  city             String?
-  postalCode       String?
-  jurisdictionType JurisdictionType
-  taxAuthority     String?
-  isActive         Boolean          @default(true)
-  notes            String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  invoiceTaxLines  InvoiceTaxLine[]
-  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  taxRules         TaxRule[]
+  id                   String           @id @default(cuid())
+  organizationId       String
+  code                 String
+  name                 String
+  country              String
+  countryCode          String?          // ISO country code (UG, KE, TZ, etc.)
+  stateProvince        String?
+  countyDistrict       String?
+  city                 String?
+  postalCode           String?
+  postalCodeStart      String?
+  postalCodeEnd        String?
+  jurisdictionType     JurisdictionType
+  taxAuthority         String?
+  taxLiabilityAccountId String?         // GL account for tax liability
+  eInvoiceFormat       String?          // EFRIS, eTIMS, etc.
+  requiresEInvoicing   Boolean          @default(false)
+  metadata             Json?            // Store EFRIS/eTIMS config, API keys, etc.
+  isActive             Boolean          @default(true)
+  notes                String?
+  parentJurisdictionId String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  invoiceTaxLines      InvoiceTaxLine[]
+  organization         Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  taxRules             TaxRule[]
+  parentJurisdiction   TaxJurisdiction? @relation("JurisdictionHierarchy", fields: [parentJurisdictionId], references: [id])
+  childJurisdictions   TaxJurisdiction[] @relation("JurisdictionHierarchy")
+  taxLiabilityAccount  ChartOfAccount?  @relation(fields: [taxLiabilityAccountId], references: [id])
 
   @@unique([organizationId, code])
   @@index([organizationId, country])
   @@index([postalCode])
+  @@index([taxLiabilityAccountId])
 }
 
 model TaxRule {
@@ -3889,6 +3924,17 @@ enum BranchType {
   DISTRIBUTION_CENTER
   SERVICE_CENTER
   REMOTE
+}
+
+enum DocumentType {
+  INVOICE
+  BILL
+  CREDIT_NOTE
+  DEBIT_NOTE
+  PAYMENT
+  CUSTOMER
+  VENDOR
+  TRANSACTION
 }
 
 enum IntegrationType {

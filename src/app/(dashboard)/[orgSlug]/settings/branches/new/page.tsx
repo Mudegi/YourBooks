@@ -37,12 +37,24 @@ export default function NewBranchPage() {
     setError(null);
     setSuccess(null);
     try {
-      // TODO: wire to POST /api/orgs/${orgSlug}/branches when available
-      console.info("Branch submission", { orgSlug, form });
-      setSuccess("Branch saved locally. Wire backend API to persist.");
+      const response = await fetch(`/api/${orgSlug}/branches`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create branch');
+      }
+
+      const newBranch = await response.json();
+      setSuccess('Branch created successfully!');
       setTimeout(() => router.push(`/${orgSlug}/settings/branches`), 800);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save branch");
+      setError(err instanceof Error ? err.message : 'Failed to save branch');
     } finally {
       setSubmitting(false);
     }

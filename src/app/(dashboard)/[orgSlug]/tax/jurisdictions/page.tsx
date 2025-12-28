@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, MapPin, Building2 } from 'lucide-react';
+import { Plus, MapPin, Building2, FileText, Download } from 'lucide-react';
 
 interface TaxJurisdiction {
   id: string;
@@ -11,11 +11,27 @@ interface TaxJurisdiction {
   code: string;
   jurisdictionType: string;
   country: string;
+  countryCode?: string;
   stateProvince?: string;
+  countyDistrict?: string;
+  city?: string;
+  postalCode?: string;
+  taxAuthority?: string;
+  taxLiabilityAccount?: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  eInvoiceFormat?: string;
+  requiresEInvoicing: boolean;
+  metadata?: any;
   isActive: boolean;
   parentJurisdiction?: {
     id: string;
     name: string;
+  };
+  _count?: {
+    taxRules: number;
   };
 }
 
@@ -26,6 +42,23 @@ const SAMPLE_JURISDICTIONS: TaxJurisdiction[] = [
     code: 'US-FED',
     jurisdictionType: 'FEDERAL',
     country: 'United States',
+    countryCode: 'US',
+    taxAuthority: 'IRS',
+    eInvoiceFormat: 'NONE',
+    requiresEInvoicing: false,
+    isActive: true,
+  },
+  {
+    id: 'sample-ug',
+    name: 'Uganda Revenue Authority',
+    code: 'UG-URA',
+    jurisdictionType: 'FEDERAL',
+    country: 'Uganda',
+    countryCode: 'UG',
+    taxAuthority: 'URA',
+    eInvoiceFormat: 'EFRIS',
+    requiresEInvoicing: true,
+    metadata: { efrisEnabled: true },
     isActive: true,
   },
   {
@@ -34,7 +67,11 @@ const SAMPLE_JURISDICTIONS: TaxJurisdiction[] = [
     code: 'US-CA',
     jurisdictionType: 'STATE',
     country: 'United States',
+    countryCode: 'US',
     stateProvince: 'California',
+    taxAuthority: 'CDTFA',
+    eInvoiceFormat: 'NONE',
+    requiresEInvoicing: false,
     isActive: true,
   },
   {
@@ -43,7 +80,12 @@ const SAMPLE_JURISDICTIONS: TaxJurisdiction[] = [
     code: 'US-SF',
     jurisdictionType: 'CITY',
     country: 'United States',
+    countryCode: 'US',
     stateProvince: 'California',
+    city: 'San Francisco',
+    taxAuthority: 'SF Tax Collector',
+    eInvoiceFormat: 'NONE',
+    requiresEInvoicing: false,
     isActive: true,
     parentJurisdiction: { id: 'sample-state', name: 'California' },
   },
@@ -78,6 +120,35 @@ export default function TaxJurisdictionsPage() {
     setJurisdictions(SAMPLE_JURISDICTIONS);
   };
 
+  const handleDownloadReport = async () => {
+    // For demo purposes, use last 30 days
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+
+    try {
+      const response = await fetch(`/api/${orgSlug}/tax/jurisdictions/report?startDate=${startDateStr}&endDate=${endDateStr}`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tax-summary-report-${startDateStr}-to-${endDateStr}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        console.error('Failed to download report');
+      }
+    } catch (error) {
+      console.error('Error downloading report:', error);
+    }
+  };
+
   const getJurisdictionTypeColor = (type: string) => {
     const colors: Record<string, string> = {
       FEDERAL: 'bg-purple-100 text-purple-800',
@@ -109,13 +180,22 @@ export default function TaxJurisdictionsPage() {
           <h1 className="text-3xl font-bold">Tax Jurisdictions</h1>
           <p className="text-gray-600 mt-1">Manage tax jurisdictions and hierarchies</p>
         </div>
-        <Link
-          href={`/${orgSlug}/tax/jurisdictions/new`}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          New Jurisdiction
-        </Link>
+        <div className="flex gap-4">
+          <Link
+            href={`/${orgSlug}/tax/jurisdictions/new`}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            New Jurisdiction
+          </Link>
+          <button
+            onClick={handleDownloadReport}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            Download Report
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -167,15 +247,18 @@ export default function TaxJurisdictionsPage() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Country</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">State/Province</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parent</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Country Code</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tax Authority</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">E-Invoice</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requires E-Invoicing</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tax Liability Account</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {jurisdictions.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
                   <MapPin className="w-12 h-12 mx-auto mb-3 text-gray-400" />
                   <p>No tax jurisdictions found</p>
                   <p className="text-sm mt-1">Create jurisdictions to manage tax rules</p>
@@ -198,11 +281,24 @@ export default function TaxJurisdictionsPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {jurisdiction.country}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {jurisdiction.stateProvince || '-'}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {jurisdiction.countryCode}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {jurisdiction.parentJurisdiction?.name || '-'}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {jurisdiction.taxAuthority}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {jurisdiction.eInvoiceFormat || 'NONE'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      jurisdiction.requiresEInvoicing ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {jurisdiction.requiresEInvoicing ? 'Yes' : 'No'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {jurisdiction.taxLiabilityAccount?.name || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${

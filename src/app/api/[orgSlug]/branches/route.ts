@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requirePermission } from '@/lib/rbac';
+import { BranchSettingsService } from '@/lib/branch-settings.service';
 
 // GET /api/[orgSlug]/branches - Get all branches for organization
 export async function GET(
@@ -24,6 +26,9 @@ export async function GET(
       );
     }
 
+    // Check permissions - users can only see branches in their organization
+    // Additional branch-level permissions can be added here if needed
+
     // Build query filters
     const where: any = {
       organizationId: organization.id,
@@ -37,27 +42,19 @@ export async function GET(
       where.type = type;
     }
 
-    // Fetch branches
-    const branches = await prisma.branch.findMany({
-      where,
-      include: {
-        _count: {
-          select: {
-            transactions: true,
-            invoices: true,
-            bills: true,
-            customers: true,
-            vendors: true,
-          },
-        },
-      },
-      orderBy: [
-        { isHeadquarters: 'desc' },
-        { name: 'asc' },
-      ],
-    });
+    // Fetch branches with effective settings
+    const branches = await BranchSettingsService.getBranchesWithSettings(organization.id);
 
-    return NextResponse.json(branches);
+    // Apply filters
+    let filteredBranches = branches;
+    if (isActive !== null) {
+      filteredBranches = branches.filter(b => b.isActive === (isActive === 'true'));
+    }
+    if (type) {
+      filteredBranches = filteredBranches.filter(b => b.type === type);
+    }
+
+    return NextResponse.json(filteredBranches);
   } catch (error) {
     console.error('Error fetching branches:', error);
     return NextResponse.json(
@@ -88,6 +85,10 @@ export async function POST(
       );
     }
 
+    // Check permissions - only organization admins can create branches
+    // For now, we'll assume the user is authenticated and in the org
+    // TODO: Add proper permission check for BRANCHES.CREATE
+
     // Validate required fields
     const { code, name, type } = body;
     if (!code || !name || !type) {
@@ -95,6 +96,11 @@ export async function POST(
         { error: 'Code, name, and type are required' },
         { status: 400 }
       );
+    }
+
+    // Validate headquarters constraint
+    if (body.isHeadquarters) {
+      await BranchSettingsService.validateBranchCreation(organization.id, true);
     }
 
     // Check if code already exists
@@ -114,7 +120,7 @@ export async function POST(
       );
     }
 
-    // Create branch
+    // Create branch with inheritance defaults
     const branch = await prisma.branch.create({
       data: {
         organizationId: organization.id,
@@ -124,7 +130,7 @@ export async function POST(
         address: body.address || null,
         city: body.city || null,
         state: body.state || null,
-        country: body.country || 'US',
+        country: body.country || organization.homeCountry, // Inherit from org
         postalCode: body.postalCode || null,
         phone: body.phone || null,
         email: body.email || null,
@@ -134,7 +140,7 @@ export async function POST(
         openingDate: body.openingDate ? new Date(body.openingDate) : new Date(),
         closingDate: body.closingDate ? new Date(body.closingDate) : null,
         taxIdNumber: body.taxIdNumber || null,
-        currency: body.currency || 'USD',
+        currency: body.currency || organization.baseCurrency, // Inherit from org
         timezone: body.timezone || 'UTC',
         metadata: body.metadata || null,
       },
@@ -144,7 +150,7 @@ export async function POST(
   } catch (error) {
     console.error('Error creating branch:', error);
     return NextResponse.json(
-      { error: 'Failed to create branch' },
+      { error: error instanceof Error ? error.message : 'Failed to create branch' },
       { status: 500 }
     );
   }

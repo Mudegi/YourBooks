@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { BranchSettingsService } from '@/lib/branch-settings.service';
 
 // GET /api/[orgSlug]/branches/[id] - Get a specific branch
 export async function GET(
@@ -21,25 +22,9 @@ export async function GET(
       );
     }
 
-    // Fetch branch
-    const branch = await prisma.branch.findFirst({
-      where: {
-        id,
-        organizationId: organization.id,
-      },
-      include: {
-        _count: {
-          select: {
-            transactions: true,
-            invoices: true,
-            bills: true,
-            customers: true,
-            vendors: true,
-            bankAccounts: true,
-          },
-        },
-      },
-    });
+    // Fetch branch with effective settings
+    const branches = await BranchSettingsService.getBranchesWithSettings(organization.id);
+    const branch = branches.find(b => b.id === id);
 
     if (!branch) {
       return NextResponse.json(
@@ -48,7 +33,13 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(branch);
+    // Get detailed branch settings
+    const settings = await BranchSettingsService.getBranchSettings(id);
+
+    return NextResponse.json({
+      ...branch,
+      settings,
+    });
   } catch (error) {
     console.error('Error fetching branch:', error);
     return NextResponse.json(
@@ -94,6 +85,17 @@ export async function PATCH(
       );
     }
 
+    // Validate headquarters changes
+    if (body.isHeadquarters !== undefined) {
+      if (body.isHeadquarters && !existingBranch.isHeadquarters) {
+        // Setting as headquarters - validate no other HQ exists
+        await BranchSettingsService.validateBranchCreation(organization.id, true);
+      } else if (!body.isHeadquarters && existingBranch.isHeadquarters) {
+        // Removing headquarters status - validate it's not the only one
+        await BranchSettingsService.validateBranchUpdate(id, { isHeadquarters: false });
+      }
+    }
+
     // Check if code is being changed and if it already exists
     if (body.code && body.code !== existingBranch.code) {
       const codeExists = await prisma.branch.findUnique({
@@ -115,7 +117,7 @@ export async function PATCH(
 
     // Update branch
     const updateData: any = {};
-    
+
     if (body.code !== undefined) updateData.code = body.code;
     if (body.name !== undefined) updateData.name = body.name;
     if (body.type !== undefined) updateData.type = body.type;
@@ -145,7 +147,7 @@ export async function PATCH(
   } catch (error) {
     console.error('Error updating branch:', error);
     return NextResponse.json(
-      { error: 'Failed to update branch' },
+      { error: error instanceof Error ? error.message : 'Failed to update branch' },
       { status: 500 }
     );
   }
@@ -186,6 +188,9 @@ export async function DELETE(
       );
     }
 
+    // Validate deletion - prevent deleting headquarters
+    await BranchSettingsService.validateBranchDeletion(id);
+
     // Check if branch has any transactions
     const transactionCount = await prisma.transaction.count({
       where: { branchId: id },
@@ -215,7 +220,7 @@ export async function DELETE(
   } catch (error) {
     console.error('Error deleting branch:', error);
     return NextResponse.json(
-      { error: 'Failed to delete branch' },
+      { error: error instanceof Error ? error.message : 'Failed to delete branch' },
       { status: 500 }
     );
   }
