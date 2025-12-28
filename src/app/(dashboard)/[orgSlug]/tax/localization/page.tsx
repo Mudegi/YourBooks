@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Globe, Save, Loader2 } from 'lucide-react';
+import { Globe, Save, Loader2, FileText, Shield, Languages } from 'lucide-react';
 
 interface LocalizationConfig {
   id?: string;
@@ -21,6 +21,14 @@ interface LocalizationConfig {
   taxIdLabel?: string;
   addressFormat?: any;
   reportingRequirements?: any;
+  // Enhanced fields for localization metadata
+  apiEndpoints?: any;
+  taxReturnTemplates?: any;
+  digitalFiscalization?: any;
+  translationKeys?: any;
+  complianceDrivers?: any;
+  fiscalCalendar?: any;
+  regulatoryBodies?: any;
 }
 
 const defaults: LocalizationConfig = {
@@ -35,6 +43,13 @@ const defaults: LocalizationConfig = {
   taxIdLabel: 'Tax ID',
   addressFormat: null,
   reportingRequirements: null,
+  apiEndpoints: null,
+  taxReturnTemplates: null,
+  digitalFiscalization: null,
+  translationKeys: null,
+  complianceDrivers: null,
+  fiscalCalendar: null,
+  regulatoryBodies: null,
 };
 
 export default function LocalizationPage() {
@@ -73,6 +88,13 @@ export default function LocalizationPage() {
         fiscalYearStart: Number(config.fiscalYearStart),
         addressFormat: parseJsonSafe(config.addressFormat),
         reportingRequirements: parseJsonSafe(config.reportingRequirements),
+        apiEndpoints: parseJsonSafe(config.apiEndpoints),
+        taxReturnTemplates: parseJsonSafe(config.taxReturnTemplates),
+        digitalFiscalization: parseJsonSafe(config.digitalFiscalization),
+        translationKeys: parseJsonSafe(config.translationKeys),
+        complianceDrivers: parseJsonSafe(config.complianceDrivers),
+        fiscalCalendar: parseJsonSafe(config.fiscalCalendar),
+        regulatoryBodies: parseJsonSafe(config.regulatoryBodies),
       };
       const res = await fetch(`/api/${orgSlug}/localization/config`, {
         method: 'PUT',
@@ -119,15 +141,30 @@ export default function LocalizationPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <p className="text-xs text-gray-500 mb-1">Country</p>
-              <Input value={config.country} onChange={(e) => setConfig({ ...config, country: e.target.value })} />
+              <Select value={config.country} onChange={(e) => setConfig({ ...config, country: e.target.value })}>
+                <option value="">Select Country</option>
+                <option value="UG">Uganda</option>
+                <option value="KE">Kenya</option>
+                <option value="TZ">Tanzania</option>
+                <option value="UK">United Kingdom</option>
+                <option value="US">United States</option>
+              </Select>
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-1">Language</p>
-              <Input value={config.language} onChange={(e) => setConfig({ ...config, language: e.target.value })} />
+              <Select value={config.language} onChange={(e) => setConfig({ ...config, language: e.target.value })}>
+                <option value="en">English</option>
+                <option value="sw">Swahili</option>
+                <option value="fr">French</option>
+              </Select>
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-1">Date Format</p>
-              <Input value={config.dateFormat} onChange={(e) => setConfig({ ...config, dateFormat: e.target.value })} />
+              <Select value={config.dateFormat} onChange={(e) => setConfig({ ...config, dateFormat: e.target.value })}>
+                <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+              </Select>
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-1">Time Format</p>
@@ -175,12 +212,73 @@ export default function LocalizationPage() {
         </Card>
 
         <Card className="p-4 space-y-3">
-          <p className="text-sm text-gray-700 mb-2">Country Pack JSON</p>
+          <div className="flex items-center gap-2 mb-2">
+            <FileText className="h-5 w-5 text-green-500" />
+            <p className="text-sm text-gray-700">Tax Return Templates</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Tax Return Templates (JSON)</p>
+            <textarea
+              className="w-full border rounded-lg p-2 text-sm min-h-[120px]"
+              value={config.taxReturnTemplates ? JSON.stringify(config.taxReturnTemplates, null, 2) : ''}
+              onChange={(e) => setConfig({ ...config, taxReturnTemplates: e.target.value })}
+              placeholder='{ "vat": "URA_VAT_RETURN_V1", "wht": "URA_WHT_RETURN_V1" }'
+            />
+          </div>
+        </Card>
+
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Shield className="h-5 w-5 text-red-500" />
+            <p className="text-sm text-gray-700">Digital Fiscalization</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Digital Fiscalization Settings (JSON)</p>
+            <textarea
+              className="w-full border rounded-lg p-2 text-sm min-h-[120px]"
+              value={config.digitalFiscalization ? JSON.stringify(config.digitalFiscalization, null, 2) : ''}
+              onChange={(e) => setConfig({ ...config, digitalFiscalization: e.target.value })}
+              placeholder='{ "eInvoicing": true, "qrCodes": true, "digitalSignatures": true }'
+            />
+          </div>
+        </Card>
+
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Languages className="h-5 w-5 text-purple-500" />
+            <p className="text-sm text-gray-700">Translation Keys</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Translation Keys (JSON)</p>
+            <textarea
+              className="w-full border rounded-lg p-2 text-sm min-h-[120px]"
+              value={config.translationKeys ? JSON.stringify(config.translationKeys, null, 2) : ''}
+              onChange={(e) => setConfig({ ...config, translationKeys: e.target.value })}
+              placeholder='{ "tax.vat": "Value Added Tax", "tax.wht": "Withholding Tax" }'
+            />
+          </div>
+        </Card>
+
+        <Card className="p-4 space-y-3">
+          <p className="text-sm text-gray-700 mb-2">API Endpoints</p>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Tax Authority API Endpoints (JSON)</p>
+            <textarea
+              className="w-full border rounded-lg p-2 text-sm min-h-[120px]"
+              value={config.apiEndpoints ? JSON.stringify(config.apiEndpoints, null, 2) : ''}
+              onChange={(e) => setConfig({ ...config, apiEndpoints: e.target.value })}
+              placeholder='{ "taxAuthority": "https://ursb.go.ug", "eInvoicing": "https://efris.ursb.go.ug" }'
+            />
+          </div>
+        </Card>
+
+        <Card className="p-4 space-y-3">
+          <p className="text-sm text-gray-700 mb-2">Additional Configuration</p>
           <div className="space-y-2">
             <div>
               <p className="text-xs text-gray-500 mb-1">Address Format (JSON)</p>
               <textarea
-                className="w-full border rounded-lg p-2 text-sm min-h-[120px]"
+                className="w-full border rounded-lg p-2 text-sm min-h-[80px]"
                 value={config.addressFormat ? JSON.stringify(config.addressFormat, null, 2) : ''}
                 onChange={(e) => setConfig({ ...config, addressFormat: e.target.value })}
                 placeholder='{ "lines": ["{street}", "{city}"] }'
@@ -189,7 +287,7 @@ export default function LocalizationPage() {
             <div>
               <p className="text-xs text-gray-500 mb-1">Reporting Requirements (JSON)</p>
               <textarea
-                className="w-full border rounded-lg p-2 text-sm min-h-[120px]"
+                className="w-full border rounded-lg p-2 text-sm min-h-[80px]"
                 value={config.reportingRequirements ? JSON.stringify(config.reportingRequirements, null, 2) : ''}
                 onChange={(e) => setConfig({ ...config, reportingRequirements: e.target.value })}
                 placeholder='{ "statutory": ["SAF-T", "VAT return"], "eInvoicing": true }'

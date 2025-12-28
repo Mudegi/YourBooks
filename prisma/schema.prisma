@@ -3746,6 +3746,16 @@ model LocalizationConfig {
   reportingRequirements Json?
   complianceSettings    Json?
   customFields          Json?
+
+  // Enhanced localization metadata for global design with localized configuration
+  apiEndpoints          Json?        // API endpoints for tax authorities (EFRIS, URA, HMRC, etc.)
+  taxReturnTemplates    Json?        // Tax return form templates and requirements
+  digitalFiscalization  Json?        // Digital fiscalization settings (e-invoicing, QR codes, etc.)
+  translationKeys       Json?        // Translation keys for tax labels and messages
+  complianceDrivers     Json?        // Country-specific compliance driver configurations
+  fiscalCalendar        Json?        // Fiscal year and tax period configurations
+  regulatoryBodies      Json?        // Tax authority contact info and requirements
+
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
   organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

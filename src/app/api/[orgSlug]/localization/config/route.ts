@@ -16,6 +16,14 @@ const localizationSchema = z.object({
   taxIdLabel: z.string().optional(),
   addressFormat: z.any().optional(),
   reportingRequirements: z.any().optional(),
+  // Enhanced localization metadata fields
+  apiEndpoints: z.any().optional(),
+  taxReturnTemplates: z.any().optional(),
+  digitalFiscalization: z.any().optional(),
+  translationKeys: z.any().optional(),
+  complianceDrivers: z.any().optional(),
+  fiscalCalendar: z.any().optional(),
+  regulatoryBodies: z.any().optional(),
 });
 
 // GET /api/[orgSlug]/localization/config
