@@ -1,7 +1,8 @@
 /**
- * API: CAPA (Corrective and Preventive Actions) Management
- * POST /api/[orgSlug]/quality/capa - Create CAPA
- * GET /api/[orgSlug]/quality/capa - List CAPAs
+ * API: Individual CAPA Management
+ * GET /api/[orgSlug]/quality/capa/[id] - Get CAPA details
+ * PUT /api/[orgSlug]/quality/capa/[id] - Update CAPA
+ * DELETE /api/[orgSlug]/quality/capa/[id] - Delete CAPA
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -10,9 +11,49 @@ import prisma from '@/lib/prisma';
 import { hasPermission, Permission } from '@/lib/permissions';
 import { capaService } from '@/services/capa.service';
 
-export async function POST(
+export async function GET(
   request: NextRequest,
-  { params }: { params: { orgSlug: string } }
+  { params }: { params: { orgSlug: string; id: string } }
+) {
+  try {
+    const payload = await verifyAuth(request);
+    if (!payload) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check permissions
+    if (!hasPermission(payload.role, Permission.VIEW_CAPA)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const organization = await prisma.organization.findUnique({
+      where: { slug: params.orgSlug },
+      select: { id: true },
+    });
+
+    if (!organization) {
+      return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
+    }
+
+    // Get CAPA using service
+    const capa = await capaService.getCAPA(params.id, organization.id);
+
+    return NextResponse.json({
+      success: true,
+      data: capa,
+    });
+  } catch (error: any) {
+    console.error('Error fetching CAPA:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch CAPA', details: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { orgSlug: string; id: string } }
 ) {
   try {
     const payload = await verifyAuth(request);
@@ -41,6 +82,7 @@ export async function POST(
       source,
       riskLevel,
       investigationMethod,
+      status,
       productId,
       lotNumber,
       vendorId,
@@ -59,21 +101,20 @@ export async function POST(
       localData,
     } = body;
 
-    // Create CAPA using service
-    const capa = await capaService.createCAPA({
-      organizationId: organization.id,
+    // Update CAPA using service
+    const capa = await capaService.updateCAPA(params.id, organization.id, {
       title,
       description,
       source,
       riskLevel,
       investigationMethod,
+      status,
       productId,
       lotNumber,
       vendorId,
       customerId,
       quantity,
       ncrId,
-      createdById: payload.userId,
       assignedToId,
       targetCompletionDate: targetCompletionDate ? new Date(targetCompletionDate) : undefined,
       rootCauseAnalysis,
@@ -91,17 +132,17 @@ export async function POST(
       data: capa,
     });
   } catch (error: any) {
-    console.error('Error creating CAPA:', error);
+    console.error('Error updating CAPA:', error);
     return NextResponse.json(
-      { error: 'Failed to create CAPA', details: error.message },
+      { error: 'Failed to update CAPA', details: error.message },
       { status: 500 }
     );
   }
 }
 
-export async function GET(
+export async function DELETE(
   request: NextRequest,
-  { params }: { params: { orgSlug: string } }
+  { params }: { params: { orgSlug: string; id: string } }
 ) {
   try {
     const payload = await verifyAuth(request);
@@ -110,7 +151,7 @@ export async function GET(
     }
 
     // Check permissions
-    if (!hasPermission(payload.role, Permission.VIEW_CAPA)) {
+    if (!hasPermission(payload.role, Permission.MANAGE_CAPA)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
@@ -123,32 +164,20 @@ export async function GET(
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status') as any;
-    const riskLevel = searchParams.get('riskLevel') as any;
-    const source = searchParams.get('source') as any;
-    const assignedToId = searchParams.get('assignedToId');
-    const dateFrom = searchParams.get('dateFrom') ? new Date(searchParams.get('dateFrom')!) : undefined;
-    const dateTo = searchParams.get('dateTo') ? new Date(searchParams.get('dateTo')!) : undefined;
-
-    // Get CAPAs using service
-    const capas = await capaService.getCAPAs(organization.id, {
-      status,
-      riskLevel,
-      source,
-      assignedToId,
-      dateFrom,
-      dateTo,
+    // Delete CAPA (soft delete by setting status to CANCELLED)
+    await prisma.cAPA.update({
+      where: { id: params.id, organizationId: organization.id },
+      data: { status: 'CANCELLED' },
     });
 
     return NextResponse.json({
       success: true,
-      data: capas,
+      message: 'CAPA cancelled successfully',
     });
   } catch (error: any) {
-    console.error('Error fetching CAPAs:', error);
+    console.error('Error deleting CAPA:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch CAPAs', details: error.message },
+      { error: 'Failed to delete CAPA', details: error.message },
       { status: 500 }
     );
   }

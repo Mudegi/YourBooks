@@ -254,7 +254,7 @@ export default function QualityHoldsPage() {
               <CheckCircle className="h-5 w-5 text-green-600" />
               <div className="flex-1">
                 <p className="text-sm font-medium">Release to Stock</p>
-                <p className="text-xs text-gray-600">Restore inventory availability</p>
+                <p className="text-xs text-gray-600">No GL impact - restore inventory</p>
               </div>
               <span className="text-xs text-green-600 font-medium">→</span>
             </div>
@@ -265,7 +265,7 @@ export default function QualityHoldsPage() {
               <Ban className="h-5 w-5 text-red-600" />
               <div className="flex-1">
                 <p className="text-sm font-medium">Scrap/Write-off</p>
-                <p className="text-xs text-gray-600">Create GL journal entry</p>
+                <p className="text-xs text-gray-600">Creates GL entry - inventory loss</p>
               </div>
               <span className="text-xs text-red-600 font-medium">→</span>
             </div>
@@ -276,7 +276,7 @@ export default function QualityHoldsPage() {
               <Package className="h-5 w-5 text-blue-600" />
               <div className="flex-1">
                 <p className="text-sm font-medium">Return to Vendor</p>
-                <p className="text-xs text-gray-600">RTV process initiation</p>
+                <p className="text-xs text-gray-600">Creates GL entry - RTV expense</p>
               </div>
               <span className="text-xs text-blue-600 font-medium">→</span>
             </div>
@@ -287,7 +287,7 @@ export default function QualityHoldsPage() {
               <Clock className="h-5 w-5 text-yellow-600" />
               <div className="flex-1">
                 <p className="text-sm font-medium">Rework</p>
-                <p className="text-xs text-gray-600">Send to production</p>
+                <p className="text-xs text-gray-600">Creates GL entry - rework expense</p>
               </div>
               <span className="text-xs text-yellow-600 font-medium">→</span>
             </div>

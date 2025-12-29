@@ -35,33 +35,49 @@ export async function POST(
 
     const body = await request.json();
     const {
+      title,
+      description,
+      source,
+      severity,
       productId,
       vendorId,
       customerId,
-      source,
-      severity,
-      description,
       quantity,
       lotNumber,
-      batchNumber,
+      detectedDate,
+      assignedToId,
       notes,
+      localComplianceData,
     } = body;
 
     // Validation
-    if (!productId || !source || !severity || !description) {
+    if (!title || !description || !source || !severity || !detectedDate) {
       return NextResponse.json(
-        { error: 'Missing required fields: productId, source, severity, description' },
+        { error: 'Missing required fields: title, description, source, severity, detectedDate' },
         { status: 400 }
       );
     }
 
-    // Verify product exists
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
-    });
+    // Verify product exists if provided
+    if (productId) {
+      const product = await prisma.product.findUnique({
+        where: { id: productId },
+      });
 
-    if (!product) {
-      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+      if (!product) {
+        return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+      }
+    }
+
+    // Verify assigned user exists if provided
+    if (assignedToId) {
+      const assignedUser = await prisma.user.findUnique({
+        where: { id: assignedToId },
+      });
+
+      if (!assignedUser) {
+        return NextResponse.json({ error: 'Assigned user not found' }, { status: 404 });
+      }
     }
 
     // Generate NCR number
@@ -92,20 +108,20 @@ export async function POST(
     const ncr = await prisma.nonConformanceReport.create({
       data: {
         organizationId: organization.id,
+        title,
+        description,
+        source,
+        severity,
         productId,
         vendorId,
         customerId,
-        ncrNumber,
-        source,
-        severity,
-        description,
-        quantity,
+        quantity: quantity ? parseFloat(quantity) : null,
         lotNumber,
-        batchNumber,
-        status: 'OPEN',
+        detectedDate: new Date(detectedDate),
         detectedById: payload.userId,
-        detectedAt: new Date(),
+        assignedToId,
         notes,
+        localComplianceData,
       },
       include: {
         product: {
@@ -127,11 +143,16 @@ export async function POST(
             name: true,
           },
         },
-        detectedByUser: {
+        detectedBy: {
           select: {
             id: true,
             name: true,
-            email: true,
+          },
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            name: true,
           },
         },
       },
@@ -139,7 +160,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      data: ncr,
+      ncr,
     });
   } catch (error: any) {
     console.error('Error creating NCR:', error);

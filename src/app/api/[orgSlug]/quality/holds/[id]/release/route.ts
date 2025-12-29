@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { hasPermission, Permission } from '@/lib/permissions';
+import { getQualityHoldAccounts, getProductCostBasis } from '@/lib/quality-hold-accounts';
 
 export async function PATCH(
   request: NextRequest,
@@ -122,21 +123,24 @@ export async function PATCH(
         }
       }
 
-      // Handle financial transactions for SCRAP dispositions
-      if (disposition === 'SCRAP') {
-        // Get inventory cost for the scrapped quantity
-        const inventory = await tx.inventoryItem.findFirst({
-          where: {
-            productId: hold.productId,
-            warehouseLocation: hold.warehouseId ? undefined : 'Main',
-            ...(hold.warehouseId && { warehouseId: hold.warehouseId }),
-          },
-        });
+      // Handle financial transactions for all dispositions that affect GL
+      if (disposition === 'SCRAP' || disposition === 'RETURN_TO_VENDOR' || disposition === 'REWORK') {
+        // Get appropriate GL accounts
+        const accounts = await getQualityHoldAccounts(tx, organization.id);
 
-        const scrapValue = inventory ? Number(inventory.averageCost) * Number(hold.quantity) : 0;
+        // Get cost basis for the held quantity
+        const { costBasis } = await getProductCostBasis(
+          tx,
+          organization.id,
+          hold.productId,
+          Number(hold.quantity),
+          hold.warehouseId || undefined
+        );
 
-        if (scrapValue > 0) {
-          // Create journal entry for scrapped inventory
+        const totalValue = costBasis * Number(hold.quantity);
+
+        if (totalValue > 0) {
+          // Generate transaction number
           const year = new Date().getFullYear();
           const lastTransaction = await tx.transaction.findFirst({
             where: {
@@ -160,27 +164,54 @@ export async function PATCH(
 
           const transactionNumber = `JE-${year}-${String(nextNumber).padStart(4, '0')}`;
 
+          let description: string;
+          let creditAccount: string;
+          let debitAccount: string;
+
+          switch (disposition) {
+            case 'SCRAP':
+              description = `Quality Hold Scrap: ${hold.holdNumber} - ${hold.product.name}`;
+              creditAccount = accounts.inventoryAccount; // Reduce inventory
+              debitAccount = accounts.lossAccount; // Record loss
+              break;
+
+            case 'RETURN_TO_VENDOR':
+              description = `Quality Hold RTV: ${hold.holdNumber} - ${hold.product.name}`;
+              creditAccount = accounts.inventoryAccount; // Reduce inventory
+              debitAccount = accounts.rtvAccount || accounts.lossAccount; // RTV expense or loss
+              break;
+
+            case 'REWORK':
+              description = `Quality Hold Rework: ${hold.holdNumber} - ${hold.product.name}`;
+              creditAccount = accounts.inventoryAccount; // Reduce inventory
+              debitAccount = accounts.reworkAccount || accounts.lossAccount; // Rework expense or loss
+              break;
+
+            default:
+              throw new Error(`Unsupported disposition: ${disposition}`);
+          }
+
           await tx.transaction.create({
             data: {
               organizationId: organization.id,
               transactionNumber,
               transactionDate: new Date(),
               transactionType: 'JOURNAL_ENTRY',
-              description: `Quality Hold Scrap: ${hold.holdNumber} - ${hold.product.name}`,
+              description,
               createdById: payload.userId,
               lines: {
                 create: [
                   {
-                    accountId: 'inventory-account-id', // TODO: Get actual inventory account
+                    accountId: creditAccount,
                     debit: 0,
-                    credit: scrapValue,
-                    description: `Inventory reduction for scrapped goods`,
+                    credit: totalValue,
+                    description: `Inventory reduction for ${disposition.toLowerCase()}`,
                   },
                   {
-                    accountId: 'loss-expense-account-id', // TODO: Get actual loss account
-                    debit: scrapValue,
+                    accountId: debitAccount,
+                    debit: totalValue,
                     credit: 0,
-                    description: `Loss from scrapped inventory`,
+                    description: `Cost of ${disposition.toLowerCase()}`,
                   },
                 ],
               },

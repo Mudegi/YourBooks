@@ -43,6 +43,7 @@ model Organization {
   billOfMaterials         BillOfMaterial[]
   branches                Branch[]
   capas                   CAPA[]
+  capaTasks               CapaTask[]
   certificatesOfAnalysis  CertificateOfAnalysis[]
   chartOfAccounts         ChartOfAccount[]
   companies               Company[]
@@ -345,6 +346,8 @@ model User {
   assignedCAPAs              CAPA[]                  @relation("CAPAAssignedTo")
   closedCAPAs                CAPA[]                  @relation("CAPAClosedBy")
   verifiedCAPAs              CAPA[]                  @relation("CAPAVerifiedBy")
+  assignedCapaTasks          CapaTask[]              @relation("CapaTaskAssignedTo")
+  completedCapaTasks         CapaTask[]              @relation("CapaTaskCompletedBy")
   issuedCOAs                 CertificateOfAnalysis[]
   approvedRevaluations       CostRevaluation[]
   cycleCounts                CycleCount[]
@@ -3582,6 +3585,7 @@ model NonConformanceReport {
   closedAt          DateTime?
   closedById        String?
   notes             String?
+  localComplianceData Json?      // Country-specific compliance data (UNBS, KEBS, etc.)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   capas             CAPA[]
@@ -3599,38 +3603,73 @@ model NonConformanceReport {
 }
 
 model CAPA {
-  id               String                @id @default(cuid())
-  organizationId   String
-  capaNumber       String
-  ncrId            String?
-  type             CAPAType
-  title            String
-  description      String
-  rootCause        String?
-  correctiveAction String?
-  preventiveAction String?
-  status           CAPAStatus            @default(OPEN)
-  priority         CAPAPriority          @default(MEDIUM)
-  assignedToId     String?
-  dueDate          DateTime?
-  implementedAt    DateTime?
-  verifiedAt       DateTime?
-  verifiedById     String?
-  effectiveness    String?
-  closedAt         DateTime?
-  closedById       String?
-  notes            String?
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
-  assignedTo       User?                 @relation("CAPAAssignedTo", fields: [assignedToId], references: [id])
-  closedBy         User?                 @relation("CAPAClosedBy", fields: [closedById], references: [id])
-  ncr              NonConformanceReport? @relation(fields: [ncrId], references: [id])
-  organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  verifiedBy       User?                 @relation("CAPAVerifiedBy", fields: [verifiedById], references: [id])
+  id                  String                @id @default(cuid())
+  organizationId      String
+  capaNumber          String
+  ncrId               String?
+  source              CAPASource            @default(NCR)
+  riskLevel           CAPARiskLevel         @default(MEDIUM)
+  investigationMethod CAPAInvestigationMethod?
+  type                CAPAType
+  title               String
+  description         String
+  rootCause           String?
+  correctiveAction    String?
+  preventiveAction    String?
+  status              CAPAStatus            @default(OPEN)
+  priority            CAPAPriority          @default(MEDIUM)
+  assignedToId        String?
+  dueDate             DateTime?
+  implementedAt       DateTime?
+  verifiedAt          DateTime?
+  verifiedById        String?
+  effectiveness       String?
+  closureDate         DateTime?
+  closedAt            DateTime?
+  closedById          String?
+  notes               String?
+  localData           Json?                 // Country-specific compliance data (UNBS, KEBS, etc.)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  assignedTo          User?                 @relation("CAPAAssignedTo", fields: [assignedToId], references: [id])
+  closedBy            User?                 @relation("CAPAClosedBy", fields: [closedById], references: [id])
+  ncr                 NonConformanceReport? @relation(fields: [ncrId], references: [id])
+  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  verifiedBy          User?                 @relation("CAPAVerifiedBy", fields: [verifiedById], references: [id])
+  tasks               CapaTask[]
 
   @@unique([organizationId, capaNumber])
   @@index([organizationId, status])
   @@index([type])
+  @@index([source])
+  @@index([riskLevel])
+}
+
+model CapaTask {
+  id          String           @id @default(cuid())
+  organizationId String
+  capaId      String
+  taskNumber  String
+  title       String
+  description String?
+  assignedToId String?
+  dueDate     DateTime?
+  status      CapaTaskStatus   @default(OPEN)
+  priority    CAPAPriority     @default(MEDIUM)
+  completedAt DateTime?
+  completedById String?
+  notes       String?
+  localData   Json?            // Country-specific task data
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  capa        CAPA             @relation(fields: [capaId], references: [id], onDelete: Cascade)
+  assignedTo  User?            @relation("CapaTaskAssignedTo", fields: [assignedToId], references: [id])
+  completedBy User?            @relation("CapaTaskCompletedBy", fields: [completedById], references: [id])
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, capaId, taskNumber])
+  @@index([organizationId, status])
+  @@index([capaId])
 }
 
 model TaxJurisdiction {
@@ -4812,6 +4851,38 @@ enum CAPAPriority {
   MEDIUM
   HIGH
   CRITICAL
+}
+
+enum CAPASource {
+  NCR
+  AUDIT
+  CUSTOMER_COMPLAINT
+  MANAGEMENT_REVIEW
+  INTERNAL_REVIEW
+  SUPPLIER_ISSUE
+  OTHER
+}
+
+enum CAPARiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum CAPAInvestigationMethod {
+  FIVE_WHY
+  FISHBONE
+  PARETO
+  FMEA
+  OTHER
+}
+
+enum CapaTaskStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }
 
 enum JurisdictionType {

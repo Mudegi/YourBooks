@@ -100,6 +100,110 @@ export interface LocalizationStrategy {
     errors: string[];
     warnings: string[];
   }>;
+
+  // NCR-specific localization methods
+  getNCRRegulatoryRequirements(): Promise<{
+    regulatoryBodies: {
+      name: string;
+      contact: string;
+      website: string;
+      requirements: string[];
+    }[];
+    standards: string[];
+    reportingRequirements: {
+      mandatory: boolean;
+      frequency: string;
+      format: string;
+      authorities: string[];
+    };
+    complianceFields: string[];
+  }>;
+
+  getNCRValidationRules(): Promise<{
+    severityLevels: string[];
+    requiredFields: string[];
+    customFields: {
+      name: string;
+      type: string;
+      required: boolean;
+      validation?: any;
+    }[];
+    workflowStates: string[];
+    escalationRules: {
+      condition: string;
+      action: string;
+      notify: string[];
+    }[];
+  }>;
+
+  getNCRTranslationKeys(language: string): Promise<Record<string, string>>;
+
+  validateNCRCompliance(ncrData: any): Promise<{
+    isCompliant: boolean;
+    errors: string[];
+    warnings: string[];
+    recommendations: string[];
+  }>;
+
+  // CAPA-specific localization methods
+  getCAPARegulatoryRequirements(): Promise<{
+    regulatoryBodies: {
+      name: string;
+      contact: string;
+      website: string;
+      requirements: string[];
+    }[];
+    standards: string[];
+    reportingRequirements: {
+      mandatory: boolean;
+      frequency: string;
+      format: string;
+      authorities: string[];
+    };
+    complianceFields: string[];
+  }>;
+
+  getCAPAValidationRules(): Promise<{
+    riskLevels: string[];
+    investigationMethods: string[];
+    requiredFields: string[];
+    customFields: {
+      name: string;
+      type: string;
+      required: boolean;
+      validation?: any;
+    }[];
+    workflowStates: string[];
+    escalationRules: {
+      condition: string;
+      action: string;
+      notify: string[];
+    }[];
+  }>;
+
+  getCAPATranslationKeys(language: string): Promise<Record<string, string>>;
+
+  validateCAPACompliance(capaData: any): Promise<{
+    isCompliant: boolean;
+    errors: string[];
+    warnings: string[];
+    recommendations: string[];
+  }>;
+
+  getRiskAssessmentRules(): Promise<{
+    riskMatrix: {
+      likelihood: string[];
+      impact: string[];
+      riskLevels: Record<string, { min: number; max: number; actions: string[] }>;
+    };
+    assessmentCriteria: {
+      financial: string[];
+      operational: string[];
+      compliance: string[];
+      reputational: string[];
+    };
+    requiredEvidenceCodes: string[];
+  }>;
 }
 
 // Registry for localization strategies
@@ -228,6 +332,231 @@ export abstract class BaseLocalizationStrategy implements LocalizationStrategy {
       warnings: [],
     };
   }
+
+  // NCR-specific default implementations
+  async getNCRRegulatoryRequirements(): Promise<{
+    regulatoryBodies: {
+      name: string;
+      contact: string;
+      website: string;
+      requirements: string[];
+    }[];
+    standards: string[];
+    reportingRequirements: {
+      mandatory: boolean;
+      frequency: string;
+      format: string;
+      authorities: string[];
+    };
+    complianceFields: string[];
+  }> {
+    return {
+      regulatoryBodies: [],
+      standards: ['ISO 9001'],
+      reportingRequirements: {
+        mandatory: false,
+        frequency: 'as-needed',
+        format: 'internal',
+        authorities: [],
+      },
+      complianceFields: [],
+    };
+  }
+
+  async getNCRValidationRules(): Promise<{
+    severityLevels: string[];
+    requiredFields: string[];
+    customFields: {
+      name: string;
+      type: string;
+      required: boolean;
+      validation?: any;
+    }[];
+    workflowStates: string[];
+    escalationRules: {
+      condition: string;
+      action: string;
+      notify: string[];
+    }[];
+  }> {
+    return {
+      severityLevels: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'],
+      requiredFields: ['title', 'description', 'source', 'severity', 'status', 'detectedDate', 'detectedById'],
+      customFields: [],
+      workflowStates: ['OPEN', 'UNDER_INVESTIGATION', 'CONTAINED', 'CLOSED'],
+      escalationRules: [],
+    };
+  }
+
+  async getNCRTranslationKeys(language: string): Promise<Record<string, string>> {
+    return {
+      'ncr.title': 'Non-Conformance Report',
+      'ncr.number': 'NCR Number',
+      'ncr.description': 'Description',
+      'ncr.severity': 'Severity',
+      'ncr.status': 'Status',
+      'ncr.source': 'Source',
+      'ncr.rootCause': 'Root Cause',
+      'ncr.containmentAction': 'Containment Action',
+      'ncr.correctiveAction': 'Corrective Action',
+      'ncr.preventiveAction': 'Preventive Action',
+    };
+  }
+
+  async validateNCRCompliance(ncrData: any): Promise<{
+    isCompliant: boolean;
+    errors: string[];
+    warnings: string[];
+    recommendations: string[];
+  }> {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const recommendations: string[] = [];
+
+    // Basic validation
+    if (!ncrData.title) errors.push('NCR title is required');
+    if (!ncrData.description) errors.push('NCR description is required');
+    if (!ncrData.source) errors.push('NCR source is required');
+    if (!ncrData.severity) errors.push('NCR severity is required');
+
+    return {
+      isCompliant: errors.length === 0,
+      errors,
+      warnings,
+      recommendations,
+    };
+  }
+
+  // CAPA-specific default implementations
+  async getCAPARegulatoryRequirements(): Promise<{
+    regulatoryBodies: {
+      name: string;
+      contact: string;
+      website: string;
+      requirements: string[];
+    }[];
+    standards: string[];
+    reportingRequirements: {
+      mandatory: boolean;
+      frequency: string;
+      format: string;
+      authorities: string[];
+    };
+    complianceFields: string[];
+  }> {
+    return {
+      regulatoryBodies: [],
+      standards: ['ISO 9001'],
+      reportingRequirements: {
+        mandatory: false,
+        frequency: 'as-needed',
+        format: 'internal',
+        authorities: [],
+      },
+      complianceFields: [],
+    };
+  }
+
+  async getCAPAValidationRules(): Promise<{
+    riskLevels: string[];
+    investigationMethods: string[];
+    requiredFields: string[];
+    customFields: {
+      name: string;
+      type: string;
+      required: boolean;
+      validation?: any;
+    }[];
+    workflowStates: string[];
+    escalationRules: {
+      condition: string;
+      action: string;
+      notify: string[];
+    }[];
+  }> {
+    return {
+      riskLevels: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'],
+      investigationMethods: ['FISHBONE', '5_WHY', 'PARETO', 'FMEA', 'CUSTOM'],
+      requiredFields: ['title', 'description', 'source', 'riskLevel', 'investigationMethod', 'status', 'createdDate', 'createdById'],
+      customFields: [],
+      workflowStates: ['OPEN', 'UNDER_INVESTIGATION', 'ACTIONS_PLANNED', 'ACTIONS_IMPLEMENTED', 'VERIFICATION_PENDING', 'CLOSED'],
+      escalationRules: [],
+    };
+  }
+
+  async getCAPATranslationKeys(language: string): Promise<Record<string, string>> {
+    return {
+      'capa.title': 'Corrective and Preventive Action',
+      'capa.number': 'CAPA Number',
+      'capa.description': 'Description',
+      'capa.riskLevel': 'Risk Level',
+      'capa.status': 'Status',
+      'capa.source': 'Source',
+      'capa.rootCause': 'Root Cause Analysis',
+      'capa.correctiveAction': 'Corrective Action',
+      'capa.preventiveAction': 'Preventive Action',
+      'capa.effectivenessVerification': 'Effectiveness Verification',
+    };
+  }
+
+  async validateCAPACompliance(capaData: any): Promise<{
+    isCompliant: boolean;
+    errors: string[];
+    warnings: string[];
+    recommendations: string[];
+  }> {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const recommendations: string[] = [];
+
+    // Basic validation
+    if (!capaData.title) errors.push('CAPA title is required');
+    if (!capaData.description) errors.push('CAPA description is required');
+    if (!capaData.source) errors.push('CAPA source is required');
+    if (!capaData.riskLevel) errors.push('CAPA risk level is required');
+
+    return {
+      isCompliant: errors.length === 0,
+      errors,
+      warnings,
+      recommendations,
+    };
+  }
+
+  async getRiskAssessmentRules(): Promise<{
+    riskMatrix: {
+      likelihood: string[];
+      impact: string[];
+      riskLevels: Record<string, { min: number; max: number; actions: string[] }>;
+    };
+    assessmentCriteria: {
+      financial: string[];
+      operational: string[];
+      compliance: string[];
+      reputational: string[];
+    };
+    requiredEvidenceCodes: string[];
+  }> {
+    return {
+      riskMatrix: {
+        likelihood: ['RARE', 'UNLIKELY', 'POSSIBLE', 'LIKELY', 'ALMOST_CERTAIN'],
+        impact: ['INSIGNIFICANT', 'MINOR', 'MODERATE', 'MAJOR', 'CATASTROPHIC'],
+        riskLevels: {
+          LOW: { min: 1, max: 6, actions: ['Monitor', 'Document'] },
+          MEDIUM: { min: 7, max: 12, actions: ['Plan mitigation', 'Assign responsibility'] },
+          HIGH: { min: 13, max: 20, actions: ['Immediate action required', 'Senior management review'] },
+          CRITICAL: { min: 21, max: 25, actions: ['Emergency response', 'Board-level notification'] },
+        },
+      },
+      assessmentCriteria: {
+        financial: ['Cost impact', 'Revenue loss', 'Budget variance'],
+        operational: ['Process disruption', 'Resource utilization', 'Timeline delay'],
+        compliance: ['Regulatory violation', 'Contract breach', 'Standard non-compliance'],
+        reputational: ['Customer satisfaction', 'Brand damage', 'Stakeholder trust'],
+      },
+      requiredEvidenceCodes: ['DOC', 'REC', 'OBS', 'INT', 'ANA'],
+    };
+  }
 }
 
 // Main Localization Provider Service
@@ -311,6 +640,71 @@ export class LocalizationProvider {
     return this.currentStrategy.validateConfiguration(config);
   }
 
+  // NCR-specific methods
+  async getNCRRegulatoryRequirements() {
+    if (!this.currentStrategy) {
+      throw new Error('No localization strategy set');
+    }
+    return this.currentStrategy.getNCRRegulatoryRequirements();
+  }
+
+  async getNCRValidationRules() {
+    if (!this.currentStrategy) {
+      throw new Error('No localization strategy set');
+    }
+    return this.currentStrategy.getNCRValidationRules();
+  }
+
+  async getNCRTranslationKeys(language: string = 'en'): Promise<Record<string, string>> {
+    if (!this.currentStrategy) {
+      throw new Error('No localization strategy set');
+    }
+    return this.currentStrategy.getNCRTranslationKeys(language);
+  }
+
+  async validateNCRCompliance(ncrData: any) {
+    if (!this.currentStrategy) {
+      throw new Error('No localization strategy set');
+    }
+    return this.currentStrategy.validateNCRCompliance(ncrData);
+  }
+
+  // CAPA-specific methods
+  async getCAPARegulatoryRequirements() {
+    if (!this.currentStrategy) {
+      throw new Error('No localization strategy set');
+    }
+    return this.currentStrategy.getCAPARegulatoryRequirements();
+  }
+
+  async getCAPAValidationRules() {
+    if (!this.currentStrategy) {
+      throw new Error('No localization strategy set');
+    }
+    return this.currentStrategy.getCAPAValidationRules();
+  }
+
+  async getCAPATranslationKeys(language: string = 'en'): Promise<Record<string, string>> {
+    if (!this.currentStrategy) {
+      throw new Error('No localization strategy set');
+    }
+    return this.currentStrategy.getCAPATranslationKeys(language);
+  }
+
+  async validateCAPACompliance(capaData: any) {
+    if (!this.currentStrategy) {
+      throw new Error('No localization strategy set');
+    }
+    return this.currentStrategy.validateCAPACompliance(capaData);
+  }
+
+  async getRiskAssessmentRules() {
+    if (!this.currentStrategy) {
+      throw new Error('No localization strategy set');
+    }
+    return this.currentStrategy.getRiskAssessmentRules();
+  }
+
   // Get supported countries
   getSupportedCountries(): string[] {
     return strategyRegistry.getSupportedCountries();
@@ -318,21 +712,46 @@ export class LocalizationProvider {
 
   // Initialize localization for an organization
   async initializeOrganizationLocalization(organizationId: string): Promise<void> {
-    // Get organization's localization config
-    const localizationConfig = await prisma.localizationConfig.findUnique({
-      where: { organizationId },
-    });
+    try {
+      // Get organization's localization config
+      const localizationConfig = await prisma.localizationConfig.findUnique({
+        where: { organizationId },
+      });
 
-    if (!localizationConfig) {
-      throw new Error(`Localization config not found for organization: ${organizationId}`);
+      if (!localizationConfig) {
+        // Create default localization config for the organization
+        const defaultConfig = await prisma.localizationConfig.create({
+          data: {
+            organizationId,
+            country: 'UG', // Default to Uganda
+            language: 'en',
+          },
+        });
+
+        // Set the localization strategy with default config
+        await this.setLocalizationStrategy({
+          organizationId,
+          country: defaultConfig.country,
+          language: defaultConfig.language,
+        });
+        return;
+      }
+
+      // Set the localization strategy
+      await this.setLocalizationStrategy({
+        organizationId,
+        country: localizationConfig.country,
+        language: localizationConfig.language,
+      });
+    } catch (error) {
+      console.error('Error initializing organization localization:', error);
+      // Fallback to default strategy
+      await this.setLocalizationStrategy({
+        organizationId,
+        country: 'UG',
+        language: 'en',
+      });
     }
-
-    // Set the localization strategy
-    await this.setLocalizationStrategy({
-      organizationId,
-      country: localizationConfig.country,
-      language: localizationConfig.language,
-    });
   }
 
   // Update localization configuration
@@ -369,3 +788,6 @@ export class LocalizationProvider {
 
 // Export singleton instance
 export const localizationProvider = LocalizationProvider.getInstance();
+
+// Import and register all localization drivers
+import './drivers/index';

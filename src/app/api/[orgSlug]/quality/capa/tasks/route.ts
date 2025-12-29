@@ -1,7 +1,7 @@
 /**
- * API: CAPA (Corrective and Preventive Actions) Management
- * POST /api/[orgSlug]/quality/capa - Create CAPA
- * GET /api/[orgSlug]/quality/capa - List CAPAs
+ * API: CAPA Tasks Management
+ * POST /api/[orgSlug]/quality/capa/tasks - Create CAPA task
+ * GET /api/[orgSlug]/quality/capa/tasks - List CAPA tasks (with filters)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -36,64 +36,48 @@ export async function POST(
 
     const body = await request.json();
     const {
+      capaId,
       title,
       description,
-      source,
-      riskLevel,
-      investigationMethod,
-      productId,
-      lotNumber,
-      vendorId,
-      customerId,
-      quantity,
-      ncrId,
       assignedToId,
-      targetCompletionDate,
-      rootCauseAnalysis,
-      correctiveAction,
-      preventiveAction,
-      effectivenessVerification,
-      verificationDate,
-      verifiedById,
-      notes,
-      localData,
+      dueDate,
+      taskType,
     } = body;
 
-    // Create CAPA using service
-    const capa = await capaService.createCAPA({
-      organizationId: organization.id,
+    // Validate required fields
+    if (!capaId || !title || !assignedToId || !taskType) {
+      return NextResponse.json(
+        { error: 'Missing required fields: capaId, title, assignedToId, taskType' },
+        { status: 400 }
+      );
+    }
+
+    // Verify CAPA belongs to organization
+    const capa = await prisma.cAPA.findFirst({
+      where: { id: capaId, organizationId: organization.id },
+    });
+
+    if (!capa) {
+      return NextResponse.json({ error: 'CAPA not found' }, { status: 404 });
+    }
+
+    // Create task using service
+    const task = await capaService.createCAPATask(capaId, organization.id, {
       title,
       description,
-      source,
-      riskLevel,
-      investigationMethod,
-      productId,
-      lotNumber,
-      vendorId,
-      customerId,
-      quantity,
-      ncrId,
-      createdById: payload.userId,
       assignedToId,
-      targetCompletionDate: targetCompletionDate ? new Date(targetCompletionDate) : undefined,
-      rootCauseAnalysis,
-      correctiveAction,
-      preventiveAction,
-      effectivenessVerification,
-      verificationDate: verificationDate ? new Date(verificationDate) : undefined,
-      verifiedById,
-      notes,
-      localData,
+      dueDate: dueDate ? new Date(dueDate) : undefined,
+      taskType,
     });
 
     return NextResponse.json({
       success: true,
-      data: capa,
+      data: task,
     });
   } catch (error: any) {
-    console.error('Error creating CAPA:', error);
+    console.error('Error creating CAPA task:', error);
     return NextResponse.json(
-      { error: 'Failed to create CAPA', details: error.message },
+      { error: 'Failed to create CAPA task', details: error.message },
       { status: 500 }
     );
   }
@@ -124,31 +108,40 @@ export async function GET(
     }
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status') as any;
-    const riskLevel = searchParams.get('riskLevel') as any;
-    const source = searchParams.get('source') as any;
+    const capaId = searchParams.get('capaId');
     const assignedToId = searchParams.get('assignedToId');
-    const dateFrom = searchParams.get('dateFrom') ? new Date(searchParams.get('dateFrom')!) : undefined;
-    const dateTo = searchParams.get('dateTo') ? new Date(searchParams.get('dateTo')!) : undefined;
+    const status = searchParams.get('status') as any;
 
-    // Get CAPAs using service
-    const capas = await capaService.getCAPAs(organization.id, {
-      status,
-      riskLevel,
-      source,
-      assignedToId,
-      dateFrom,
-      dateTo,
+    // Build filter
+    const where: any = { organizationId: organization.id };
+    if (capaId) where.capaId = capaId;
+    if (assignedToId) where.assignedToId = assignedToId;
+    if (status) where.status = status;
+
+    const tasks = await prisma.capaTask.findMany({
+      where,
+      include: {
+        capa: {
+          select: { id: true, capaNumber: true, title: true },
+        },
+        assignedTo: {
+          select: { id: true, name: true, email: true },
+        },
+        createdBy: {
+          select: { id: true, name: true, email: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
     });
 
     return NextResponse.json({
       success: true,
-      data: capas,
+      data: tasks,
     });
   } catch (error: any) {
-    console.error('Error fetching CAPAs:', error);
+    console.error('Error fetching CAPA tasks:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch CAPAs', details: error.message },
+      { error: 'Failed to fetch CAPA tasks', details: error.message },
       { status: 500 }
     );
   }

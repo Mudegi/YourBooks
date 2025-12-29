@@ -4,110 +4,97 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Target, FileText, Clock, CheckCircle, Plus } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Target, FileText, Clock, CheckCircle, Plus, AlertTriangle, TrendingUp, Filter } from 'lucide-react';
 
 interface CAPA {
   id: string;
-  number: string;
+  capaNumber: string;
   title: string;
-  type: string;
-  ncr?: { number: string };
+  description: string;
+  source: string;
+  riskLevel: string;
+  investigationMethod: string;
   status: string;
-  priority: string;
-  issueDescription: string;
-  rootCause?: string;
-  proposedAction?: string;
   assignedTo?: { name: string };
   targetCompletionDate?: string;
   createdAt: string;
+  ncr?: { ncrNumber: string; title: string };
+  tasks?: { id: string; status: string }[];
+  createdBy: { name: string };
 }
 
-const sampleCapas: CAPA[] = [
-  {
-    id: 'capa-001',
-    number: 'CAPA-3101',
-    title: 'Corrective: dimensional deviation fix',
-    type: 'CORRECTIVE',
-    ncr: { number: 'NCR-2305' },
-    status: 'IN_PROGRESS',
-    priority: 'HIGH',
-    issueDescription: 'Clamp fixture misalignment causing width variance',
-    assignedTo: { name: 'QE - C. Musa' },
-    targetCompletionDate: '2025-12-28',
-    createdAt: '2025-12-18',
-  },
-  {
-    id: 'capa-002',
-    number: 'CAPA-3099',
-    title: 'Preventive: supplier rust prevention SOP',
-    type: 'PREVENTIVE',
-    ncr: { number: 'NCR-2304' },
-    status: 'OPEN',
-    priority: 'URGENT',
-    issueDescription: 'Rust spots in incoming lot; need supplier corrective plan',
-    assignedTo: { name: 'SQE - J. Patel' },
-    targetCompletionDate: '2026-01-05',
-    createdAt: '2025-12-17',
-  },
-  {
-    id: 'capa-003',
-    number: 'CAPA-3095',
-    title: 'Packaging tear mitigation',
-    type: 'CORRECTIVE',
-    ncr: { number: 'NCR-2301' },
-    status: 'COMPLETED',
-    priority: 'MEDIUM',
-    issueDescription: 'Outer carton tears; reinforced corner protection added',
-    assignedTo: { name: 'Ops - S. Kim' },
-    targetCompletionDate: '2025-12-15',
-    createdAt: '2025-12-10',
-  },
-];
+interface CAPAStats {
+  total: number;
+  open: number;
+  closed: number;
+  overdue: number;
+  critical: number;
+  byRiskLevel: Record<string, number>;
+  bySource: Record<string, number>;
+}
 
 export default function CAPAPage() {
   const params = useParams();
   const router = useRouter();
   const orgSlug = params.orgSlug as string;
-  const [capas, setCapas] = useState<CAPA[]>(sampleCapas);
-  const [loading, setLoading] = useState(false);
+  const [capas, setCapas] = useState<CAPA[]>([]);
+  const [stats, setStats] = useState<CAPAStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    status: 'all',
+    riskLevel: 'all',
+    source: 'all',
+    assignedToId: 'all',
+  });
 
   useEffect(() => {
     fetchCAPAs();
-  }, [orgSlug]);
+    fetchStats();
+  }, [orgSlug, filters]);
 
   const fetchCAPAs = async () => {
     try {
-      setLoading(true);
-      const response = await fetch(`/api/${orgSlug}/quality/capa`);
+      const queryParams = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value && value !== 'all') queryParams.append(key, value);
+      });
+
+      const response = await fetch(`/api/${orgSlug}/quality/capa?${queryParams}`);
       if (response.ok) {
         const data = await response.json();
-        const records = data?.data || data;
-        if (Array.isArray(records)) {
-          setCapas(records);
-        }
+        setCapas(data?.data || []);
       }
     } catch (error) {
-      console.error('Error fetching CAPAs, showing sample data:', error);
+      console.error('Error fetching CAPAs:', error);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      const response = await fetch(`/api/${orgSlug}/quality/capa/config?stats=true`);
+      if (response.ok) {
+        const data = await response.json();
+        setStats(data?.data?.statistics || null);
+      }
+    } catch (error) {
+      console.error('Error fetching CAPA stats:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const totalCAPAs = capas.length;
-  const openCAPAs = capas.filter(c => c.status === 'OPEN' || c.status === 'IN_PROGRESS').length;
-  const completedCAPAs = capas.filter(c => c.status === 'COMPLETED').length;
-  const correctiveActions = capas.filter(c => c.type === 'CORRECTIVE').length;
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'URGENT':
+  const getRiskLevelColor = (riskLevel: string) => {
+    switch (riskLevel) {
+      case 'CRITICAL':
         return 'bg-red-100 text-red-800';
       case 'HIGH':
         return 'bg-orange-100 text-orange-800';
       case 'MEDIUM':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-yellow-100 text-yellow-800';
       case 'LOW':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-green-100 text-green-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -119,26 +106,41 @@ export default function CAPAPage() {
         return 'bg-yellow-100 text-yellow-800';
       case 'IN_PROGRESS':
         return 'bg-blue-100 text-blue-800';
-      case 'COMPLETED':
-        return 'bg-green-100 text-green-800';
+      case 'IMPLEMENTED':
+        return 'bg-purple-100 text-purple-800';
+      case 'VERIFYING':
+        return 'bg-indigo-100 text-indigo-800';
       case 'VERIFIED':
-        return 'bg-green-100 text-green-800';
+        return 'bg-teal-100 text-teal-800';
       case 'CLOSED':
+        return 'bg-green-100 text-green-800';
+      case 'CANCELLED':
         return 'bg-gray-100 text-gray-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'CORRECTIVE':
+  const getSourceColor = (source: string) => {
+    switch (source) {
+      case 'NCR':
         return 'bg-red-100 text-red-800';
-      case 'PREVENTIVE':
+      case 'AUDIT':
         return 'bg-blue-100 text-blue-800';
+      case 'CUSTOMER_COMPLAINT':
+        return 'bg-orange-100 text-orange-800';
+      case 'MANAGEMENT_REVIEW':
+        return 'bg-purple-100 text-purple-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const isOverdue = (capa: CAPA) => {
+    if (!capa.targetCompletionDate || capa.status === 'CLOSED' || capa.status === 'CANCELLED') {
+      return false;
+    }
+    return new Date(capa.targetCompletionDate) < new Date();
   };
 
   if (loading) {
@@ -173,7 +175,7 @@ export default function CAPAPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Total CAPAs</p>
-              <p className="text-2xl font-bold">{totalCAPAs}</p>
+              <p className="text-2xl font-bold">{stats?.total || 0}</p>
             </div>
             <FileText className="h-8 w-8 text-blue-500" />
           </div>
@@ -182,7 +184,7 @@ export default function CAPAPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Open/In Progress</p>
-              <p className="text-2xl font-bold">{openCAPAs}</p>
+              <p className="text-2xl font-bold">{stats?.open || 0}</p>
             </div>
             <Clock className="h-8 w-8 text-orange-500" />
           </div>
@@ -190,22 +192,83 @@ export default function CAPAPage() {
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Completed</p>
-              <p className="text-2xl font-bold">{completedCAPAs}</p>
+              <p className="text-sm text-gray-500">Overdue</p>
+              <p className="text-2xl font-bold text-red-600">{stats?.overdue || 0}</p>
             </div>
-            <CheckCircle className="h-8 w-8 text-green-500" />
+            <AlertTriangle className="h-8 w-8 text-red-500" />
           </div>
         </Card>
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Corrective Actions</p>
-              <p className="text-2xl font-bold">{correctiveActions}</p>
+              <p className="text-sm text-gray-500">Critical Risk</p>
+              <p className="text-2xl font-bold text-red-600">{stats?.critical || 0}</p>
             </div>
-            <Target className="h-8 w-8 text-red-500" />
+            <TrendingUp className="h-8 w-8 text-red-500" />
           </div>
         </Card>
       </div>
+
+      {/* Filters */}
+      <Card className="p-4 mb-6">
+        <div className="flex items-center gap-4 mb-4">
+          <Filter className="h-5 w-5 text-gray-500" />
+          <h3 className="text-lg font-medium">Filters</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Select value={filters.status} onValueChange={(value) => setFilters({...filters, status: value})}>
+            <SelectTrigger>
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="OPEN">Open</SelectItem>
+              <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+              <SelectItem value="IMPLEMENTED">Implemented</SelectItem>
+              <SelectItem value="VERIFYING">Verifying</SelectItem>
+              <SelectItem value="VERIFIED">Verified</SelectItem>
+              <SelectItem value="CLOSED">Closed</SelectItem>
+              <SelectItem value="CANCELLED">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={filters.riskLevel} onValueChange={(value) => setFilters({...filters, riskLevel: value})}>
+            <SelectTrigger>
+              <SelectValue placeholder="All Risk Levels" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Risk Levels</SelectItem>
+              <SelectItem value="LOW">Low</SelectItem>
+              <SelectItem value="MEDIUM">Medium</SelectItem>
+              <SelectItem value="HIGH">High</SelectItem>
+              <SelectItem value="CRITICAL">Critical</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={filters.source} onValueChange={(value) => setFilters({...filters, source: value})}>
+            <SelectTrigger>
+              <SelectValue placeholder="All Sources" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sources</SelectItem>
+              <SelectItem value="NCR">NCR</SelectItem>
+              <SelectItem value="AUDIT">Audit</SelectItem>
+              <SelectItem value="CUSTOMER_COMPLAINT">Customer Complaint</SelectItem>
+              <SelectItem value="MANAGEMENT_REVIEW">Management Review</SelectItem>
+              <SelectItem value="INTERNAL_REVIEW">Internal Review</SelectItem>
+              <SelectItem value="SUPPLIER_ISSUE">Supplier Issue</SelectItem>
+              <SelectItem value="OTHER">Other</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Button
+            variant="outline"
+            onClick={() => setFilters({ status: 'all', riskLevel: 'all', source: 'all', assignedToId: 'all' })}
+          >
+            Clear Filters
+          </Button>
+        </div>
+      </Card>
 
       {/* CAPAs Table */}
       <Card>
@@ -220,10 +283,10 @@ export default function CAPAPage() {
                   Title
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
+                  Source
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Priority
+                  Risk Level
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -237,12 +300,15 @@ export default function CAPAPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Target Date
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Tasks
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {capas.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                     No CAPAs found. Create your first corrective/preventive action.
                   </td>
                 </tr>
@@ -254,27 +320,30 @@ export default function CAPAPage() {
                     className="hover:bg-gray-50 cursor-pointer"
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-medium text-gray-900">{capa.number}</span>
+                      <span className="text-sm font-medium text-gray-900">{capa.capaNumber}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm font-medium text-gray-900">{capa.title}</span>
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">{capa.title}</span>
+                        <p className="text-xs text-gray-500 truncate max-w-xs">{capa.description}</p>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
-                        className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getTypeColor(
-                          capa.type
+                        className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getSourceColor(
+                          capa.source
                         )}`}
                       >
-                        {capa.type}
+                        {capa.source.replace('_', ' ')}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
-                        className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPriorityColor(
-                          capa.priority
+                        className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getRiskLevelColor(
+                          capa.riskLevel
                         )}`}
                       >
-                        {capa.priority}
+                        {capa.riskLevel}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -285,9 +354,12 @@ export default function CAPAPage() {
                       >
                         {capa.status.replace('_', ' ')}
                       </span>
+                      {isOverdue(capa) && (
+                        <div className="text-xs text-red-600 mt-1">Overdue</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-900">{capa.ncr?.number || '—'}</span>
+                      <span className="text-sm text-gray-900">{capa.ncr?.ncrNumber || '—'}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm text-gray-900">{capa.assignedTo?.name || '—'}</span>
@@ -296,6 +368,9 @@ export default function CAPAPage() {
                       {capa.targetCompletionDate
                         ? new Date(capa.targetCompletionDate).toLocaleDateString()
                         : '—'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {capa.tasks?.filter(t => t.status !== 'COMPLETED').length || 0} open
                     </td>
                   </tr>
                 ))

@@ -104,6 +104,10 @@ const BASE_ACCOUNTS: AccountTemplate[] = [
   { code: '6900', name: 'Bank Fees', accountType: AccountType.EXPENSE, accountSubType: 'Operating Expenses', description: 'Bank service charges' },
   { code: '7000', name: 'Interest Expense', accountType: AccountType.EXPENSE, accountSubType: 'Financial Expenses', description: 'Interest on loans and debt' },
   { code: '7100', name: 'Tax Expense', accountType: AccountType.EXPENSE, accountSubType: 'Financial Expenses', description: 'Income tax and other taxes' },
+  { code: '7200', name: 'Quality Control Expense', accountType: AccountType.EXPENSE, accountSubType: 'Operating Expenses', description: 'Quality assurance and testing costs' },
+  { code: '7300', name: 'Rework Expense', accountType: AccountType.EXPENSE, accountSubType: 'Operating Expenses', description: 'Costs associated with reworking defective products' },
+  { code: '7400', name: 'RTV Expense', accountType: AccountType.EXPENSE, accountSubType: 'Operating Expenses', description: 'Costs for returning goods to vendors' },
+  { code: '7500', name: 'Scrap Loss Expense', accountType: AccountType.EXPENSE, accountSubType: 'Operating Expenses', description: 'Loss from scrapped or written-off inventory' },
   { code: '9000', name: 'Miscellaneous Expense', accountType: AccountType.EXPENSE, accountSubType: 'Other Expenses', description: 'Unclassified expenses' },
 ];
 
