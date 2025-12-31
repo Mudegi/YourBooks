@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, LineChart, Target, Calendar } from 'lucide-react';
 
@@ -17,16 +17,16 @@ interface DemandForecast {
     name: string;
   };
   forecastMethod: string;
-  forecastQuantity: number;
-  confidenceLower?: number;
-  confidenceUpper?: number;
-  accuracy?: number;
+  forecastedDemand: string | number; // Prisma Decimal comes as string
+  confidenceLevel?: string | number | null; // Prisma Decimal comes as string
+  accuracy?: string | number | null; // Prisma Decimal comes as string
   periodStart: string;
   periodEnd: string;
 }
 
 export default function DemandForecastsPage() {
   const params = useParams();
+  const router = useRouter();
   const orgSlug = params.orgSlug as string;
   
   const [forecasts, setForecasts] = useState<DemandForecast[]>([]);
@@ -44,12 +44,21 @@ export default function DemandForecastsPage() {
         const data = await response.json();
         setForecasts(data.data);
         setSummary(data.summary);
+        console.log('✅ Forecasts loaded:', data.data.length);
+      } else {
+        console.error('❌ API Error:', response.status, response.statusText);
+        const errorData = await response.text();
+        console.error('Error details:', errorData);
       }
     } catch (error) {
-      console.error('Error fetching forecasts:', error);
+      console.error('❌ Network Error fetching forecasts:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleForecastClick = (forecastId: string) => {
+    router.push(`/${orgSlug}/planning/forecasts/${forecastId}`);
   };
 
   if (loading) {
@@ -135,7 +144,11 @@ export default function DemandForecastsPage() {
               </tr>
             ) : (
               forecasts.map((forecast) => (
-                <tr key={forecast.id} className="hover:bg-gray-50">
+                <tr 
+                  key={forecast.id} 
+                  className="hover:bg-gray-50 cursor-pointer transition-colors"
+                  onClick={() => handleForecastClick(forecast.id)}
+                >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="font-medium text-gray-900">{forecast.product.name}</div>
@@ -148,15 +161,15 @@ export default function DemandForecastsPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
-                    {forecast.forecastQuantity.toFixed(0)}
+                    {Number(forecast.forecastedDemand).toFixed(0)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500">
-                    {forecast.confidenceLower && forecast.confidenceUpper 
-                      ? `${forecast.confidenceLower.toFixed(0)} - ${forecast.confidenceUpper.toFixed(0)}`
+                    {forecast.confidenceLevel 
+                      ? `${Number(forecast.confidenceLevel).toFixed(1)}%`
                       : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
-                    {forecast.accuracy ? `${(forecast.accuracy * 100).toFixed(1)}%` : '-'}
+                    {forecast.accuracy ? `${Number(forecast.accuracy).toFixed(1)}%` : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(forecast.periodStart).toLocaleDateString()} - {new Date(forecast.periodEnd).toLocaleDateString()}

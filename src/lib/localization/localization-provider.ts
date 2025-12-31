@@ -559,6 +559,9 @@ export abstract class BaseLocalizationStrategy implements LocalizationStrategy {
   }
 }
 
+// Import and register all localization drivers
+import './drivers/index';
+
 // Main Localization Provider Service
 export class LocalizationProvider {
   private static instance: LocalizationProvider;
@@ -788,6 +791,3 @@ export class LocalizationProvider {
 
 // Export singleton instance
 export const localizationProvider = LocalizationProvider.getInstance();
-
-// Import and register all localization drivers
-import './drivers/index';

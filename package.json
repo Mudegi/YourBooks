@@ -17,7 +17,15 @@
     "type-check": "tsc --noEmit",
     "scheduler": "tsx scripts/scheduler.ts",
     "scheduler:worker": "tsx scripts/recurring-worker.ts",
-    "notifications:worker": "tsx scripts/notification-worker.ts"
+    "notifications:worker": "tsx scripts/notification-worker.ts",
+    "seed:demo": "node seed-demo-forecasting-data.js",
+    "test:demo": "node test-demo-forecasting.js",
+    "demo:cleanup": "node seed-demo-forecasting-data.js cleanup",
+    "demo:reset": "npm run demo:cleanup && npm run seed:demo",
+    "demo:company": "node setup-demo-company-data.js",
+    "demo:company-test": "node test-demo-company-forecasting.js",
+    "localization:setup": "node setup-localization-config.js demo",
+    "localization:validate": "node setup-localization-config.js validate-uganda"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.0",
