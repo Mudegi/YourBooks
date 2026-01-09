@@ -32,6 +32,23 @@ export function formatCurrency(
 }
 
 /**
+ * Format date and time
+ */
+export function formatDateTime(
+  date: string | Date,
+  locale: string = 'en-US'
+): string {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  return new Intl.DateTimeFormat(locale, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(dateObj);
+}
+
+/**
  * Format percentage
  */
 export function formatPercent(

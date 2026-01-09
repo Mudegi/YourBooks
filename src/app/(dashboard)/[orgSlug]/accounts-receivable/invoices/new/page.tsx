@@ -19,6 +19,16 @@ interface Customer {
   paymentTerms?: number;
 }
 
+interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  productType: string;
+  sellingPrice: number;
+  defaultTaxRate: number;
+  description?: string;
+}
+
 interface TaxLine {
   taxType: string;
   rate: number;
@@ -30,6 +40,8 @@ interface TaxLine {
 }
 
 interface InvoiceItem {
+  productId?: string;
+  productName: string;
   description: string;
   quantity: number;
   unitPrice: number;
@@ -47,6 +59,7 @@ export default function NewInvoicePage() {
   const customerId = searchParams.get('customerId');
 
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -59,7 +72,7 @@ export default function NewInvoicePage() {
   });
 
   const [items, setItems] = useState<InvoiceItem[]>([
-    { description: '', quantity: 1, unitPrice: 0, discount: 0, taxLines: [], amount: 0 },
+    { productName: '', description: '', quantity: 1, unitPrice: 0, discount: 0, taxLines: [], amount: 0 },
   ]);
   const [expandedTaxRows, setExpandedTaxRows] = useState<Set<number>>(new Set());
   const [undoStack, setUndoStack] = useState<InvoiceItem[][]>([]);
@@ -69,6 +82,7 @@ export default function NewInvoicePage() {
 
   useEffect(() => {
     fetchCustomers();
+    fetchProducts();
   }, [orgSlug]);
 
   useEffect(() => {
@@ -107,10 +121,43 @@ export default function NewInvoicePage() {
     }
   };
 
+  const fetchProducts = async () => {
+    try {
+      const response = await fetch(`/api/${orgSlug}/inventory/products`);
+      const data = await response.json();
+
+      if (data.success) {
+        const activeProducts = data.data.filter((p: any) => p.isActive);
+        setProducts(activeProducts);
+        
+        // Log breakdown by type
+        const byType = activeProducts.reduce((acc: any, p: any) => {
+          acc[p.productType] = (acc[p.productType] || 0) + 1;
+          return acc;
+        }, {});
+        console.log(`Loaded ${activeProducts.length} active products:`, byType);
+      } else {
+        console.error('Failed to fetch products:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    }
+  };
+
   const addItem = () => {
     setUndoStack((prev) => [...prev, items]);
     setRedoStack([]);
-    setItems([...items, { description: '', quantity: 1, unitPrice: 0, discount: 0, taxLines: [], amount: 0 }]);
+    const newItems = [...items, { productName: '', description: '', quantity: 1, unitPrice: 0, discount: 0, taxLines: [], amount: 0 }];
+    setItems(newItems);
+    
+    // Auto-focus the product field of the new row after a brief delay
+    setTimeout(() => {
+      const productInputs = document.querySelectorAll('[data-item-product]');
+      const lastInput = productInputs[productInputs.length - 1] as HTMLInputElement;
+      if (lastInput) {
+        lastInput.focus();
+      }
+    }, 100);
   };
 
   const removeItem = (index: number) => {
@@ -122,12 +169,70 @@ export default function NewInvoicePage() {
   };
 
   const updateItem = (index: number, field: keyof InvoiceItem, value: string | number) => {
-    setUndoStack((prev) => [...prev, items]);
-    setRedoStack([]);
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
     newItems[index].amount = calculateLineAmount(newItems[index]);
     setItems(newItems);
+  };
+
+  const selectProduct = (index: number, productId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (product) {
+      const newItems = [...items];
+      newItems[index] = {
+        ...newItems[index],
+        productId: product.id,
+        productName: product.name,
+        description: product.description || '',
+        unitPrice: product.sellingPrice,
+        taxLines: product.defaultTaxRate > 0 ? [{
+          taxType: 'STANDARD',
+          rate: product.defaultTaxRate,
+          compoundSequence: 1,
+          isCompound: false,
+          isWithholding: false,
+        }] : [],
+      };
+      newItems[index].amount = calculateLineAmount(newItems[index]);
+      setItems(newItems);
+    }
+  };
+
+  const getPrimaryTaxRate = (item: InvoiceItem): number => {
+    if (!item.taxLines || item.taxLines.length === 0) return 0;
+    const primaryTax = item.taxLines.find(t => !t.isWithholding);
+    return primaryTax ? primaryTax.rate : 0;
+  };
+
+  const updateTaxRate = (index: number, rate: number) => {
+    const newItems = [...items];
+    if (rate === 0) {
+      newItems[index].taxLines = [];
+    } else {
+      newItems[index].taxLines = [{
+        taxType: 'STANDARD',
+        rate: rate,
+        compoundSequence: 1,
+        isCompound: false,
+        isWithholding: false,
+      }];
+    }
+    newItems[index].amount = calculateLineAmount(newItems[index]);
+    setItems(newItems);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, index: number, field: string) => {
+    // Tab key on the last field of the last row adds a new line
+    if (e.key === 'Tab' && !e.shiftKey && index === items.length - 1 && field === 'tax') {
+      e.preventDefault();
+      addItem();
+    }
+    
+    // Enter key adds a new line
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addItem();
+    }
   };
 
   const addTaxLine = (itemIndex: number) => {
@@ -243,8 +348,8 @@ export default function NewInvoicePage() {
         throw new Error('Please select a customer');
       }
 
-      if (items.length === 0 || items.some((item) => !item.description)) {
-        throw new Error('Please add at least one item with a description');
+      if (items.length === 0 || items.some((item) => !item.productName && !item.description)) {
+        throw new Error('Please add at least one item');
       }
 
       const response = await fetch(`/api/orgs/${orgSlug}/invoices`, {
@@ -253,7 +358,8 @@ export default function NewInvoicePage() {
         body: JSON.stringify({
           ...formData,
           items: items.map((item) => ({
-            description: item.description,
+            productId: item.productId,
+            description: item.description || item.productName,
             quantity: parseFloat(String(item.quantity)),
             unitPrice: parseFloat(String(item.unitPrice)),
             discount: parseFloat(String(item.discount || 0)),
@@ -467,129 +573,240 @@ export default function NewInvoicePage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b-2 border-gray-300">
+                  <th className="px-3 py-3 text-left text-sm font-semibold text-gray-700 bg-gray-50">
+                    #
+                  </th>
+                  <th className="px-3 py-3 text-left text-sm font-semibold text-gray-700 bg-gray-50" style={{minWidth: '200px'}}>
+                    Product / Service
+                  </th>
+                  <th className="px-3 py-3 text-left text-sm font-semibold text-gray-700 bg-gray-50" style={{minWidth: '250px'}}>
                     Description
                   </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase w-24">
-                    Quantity
+                  <th className="px-3 py-3 text-right text-sm font-semibold text-gray-700 bg-gray-50 w-24">
+                    Qty
                   </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase w-32">
-                    Unit Price
+                  <th className="px-3 py-3 text-right text-sm font-semibold text-gray-700 bg-gray-50 w-32">
+                    Rate
                   </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase w-24">
+                  <th className="px-3 py-3 text-right text-sm font-semibold text-gray-700 bg-gray-50 w-28">
                     Discount
                   </th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase w-32">
+                  <th className="px-3 py-3 text-right text-sm font-semibold text-gray-700 bg-gray-50 w-24">
+                    Tax %
+                  </th>
+                  <th className="px-3 py-3 text-right text-sm font-semibold text-gray-700 bg-gray-50 w-36">
                     Amount
                   </th>
-                  <th className="px-4 py-2 w-12"></th>
+                  <th className="px-3 py-3 bg-gray-50 w-20"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody>
                 {items.map((item, index) => (
                   <React.Fragment key={index}>
-                    <tr>
-                      <td className="px-4 py-2">
-                        <input
-                          type="text"
-                          required
-                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="Item description"
+                    <tr className="border-b border-gray-200 hover:bg-blue-50 transition-colors group">
+                      <td className="px-3 py-3 text-sm text-gray-600 align-top">
+                        {index + 1}
+                      </td>
+                      <td className="px-3 py-2">
+                        <select
+                          data-item-product
+                          className="w-full px-2 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all hover:border-gray-400 bg-white"
+                          value={item.productId || ''}
+                          onChange={(e) => {
+                            if (e.target.value === 'custom') {
+                              updateItem(index, 'productId', '');
+                              updateItem(index, 'productName', '');
+                            } else if (e.target.value) {
+                              selectProduct(index, e.target.value);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const descInput = document.querySelectorAll('[data-item-description]')[index] as HTMLInputElement;
+                              if (descInput) descInput.focus();
+                            }
+                          }}
+                        >
+                          <option value="">Select product/service...</option>
+                          
+                          {/* Products Section */}
+                          {products.filter(p => p.productType === 'INVENTORY').length > 0 && (
+                            <optgroup label="─── Products ───">
+                              {products.filter(p => p.productType === 'INVENTORY').map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} {p.sku ? `(${p.sku})` : ''}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          
+                          {/* Services Section */}
+                          {products.filter(p => p.productType === 'SERVICE').length > 0 && (
+                            <optgroup label="─── Services ───">
+                              {products.filter(p => p.productType === 'SERVICE').map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} {p.sku ? `(${p.sku})` : ''}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          
+                          {/* Non-Inventory Section */}
+                          {products.filter(p => p.productType === 'NON_INVENTORY').length > 0 && (
+                            <optgroup label="─── Non-Inventory ───">
+                              {products.filter(p => p.productType === 'NON_INVENTORY').map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} {p.sku ? `(${p.sku})` : ''}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          
+                          <option value="custom">── Custom Item ──</option>
+                        </select>
+                        {(!item.productId && item.productName) && (
+                          <input
+                            type="text"
+                            className="w-full px-2 py-1.5 mt-1 border border-blue-300 rounded text-sm focus:ring-2 focus:ring-blue-500 bg-blue-50"
+                            placeholder="Custom item name"
+                            value={item.productName}
+                            onChange={(e) => updateItem(index, 'productName', e.target.value)}
+                          />
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <textarea
+                          data-item-description
+                          rows={2}
+                          className="w-full px-2 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all hover:border-gray-400 resize-none"
+                          placeholder="Add details (optional)"
                           value={item.description}
                           onChange={(e) => updateItem(index, 'description', e.target.value)}
-                          aria-label="Item description"
-                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              addItem();
+                            }
+                          }}
                         />
                       </td>
-                      <td className="px-4 py-2">
+                      <td className="px-3 py-2">
                         <input
                           type="number"
                           min="0"
                           step="0.01"
                           required
-                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-2 py-2 border border-gray-300 rounded text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all hover:border-gray-400"
                           value={item.quantity}
                           onChange={(e) => updateItem(index, 'quantity', e.target.value)}
-                          aria-label="Quantity"
-                          tabIndex={0}
+                          onKeyDown={(e) => handleKeyDown(e, index, 'quantity')}
                         />
                       </td>
-                      <td className="px-4 py-2">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          required
-                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          value={item.unitPrice}
-                          onChange={(e) => updateItem(index, 'unitPrice', e.target.value)}
-                          aria-label="Unit Price"
-                          tabIndex={0}
-                        />
+                      <td className="px-3 py-2">
+                        <div className="relative">
+                          <span className="absolute left-2 top-2 text-sm text-gray-500">{currency}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            required
+                            className="w-full pl-10 pr-2 py-2 border border-gray-300 rounded text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all hover:border-gray-400"
+                            value={item.unitPrice}
+                            onChange={(e) => updateItem(index, 'unitPrice', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, index, 'unitPrice')}
+                          />
+                        </div>
                       </td>
-                      <td className="px-4 py-2">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          value={item.discount || 0}
-                          onChange={(e) => updateItem(index, 'discount', e.target.value)}
-                          aria-label="Discount"
-                          tabIndex={0}
-                        />
+                      <td className="px-3 py-2">
+                        <div className="relative">
+                          <span className="absolute left-2 top-2 text-sm text-gray-500">{currency}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className="w-full pl-10 pr-2 py-2 border border-gray-300 rounded text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all hover:border-gray-400"
+                            value={item.discount || 0}
+                            onChange={(e) => updateItem(index, 'discount', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, index, 'discount')}
+                          />
+                        </div>
                       </td>
-                      <td className="px-4 py-2">
-                        <div className="text-sm font-medium text-gray-900">
+                      <td className="px-3 py-2">
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            className="w-full px-2 pr-6 py-2 border border-gray-300 rounded text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all hover:border-gray-400"
+                            value={getPrimaryTaxRate(item)}
+                            onChange={(e) => updateTaxRate(index, parseFloat(e.target.value) || 0)}
+                            onKeyDown={(e) => handleKeyDown(e, index, 'tax')}
+                            placeholder="0"
+                          />
+                          <span className="absolute right-2 top-2 text-sm text-gray-500">%</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-right align-top">
+                        <div className="text-sm font-semibold text-gray-900 bg-gray-50 px-2 py-2 rounded group-hover:bg-blue-100">
                           {formatCurrency(item.amount, currency)}
                         </div>
                       </td>
-                      <td className="px-4 py-2">
-                        <div className="flex items-center space-x-1">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedTaxRows(new Set(expandedTaxRows.has(index) ? [...expandedTaxRows].filter(i => i !== index) : [...expandedTaxRows, index]))}
-                            className="p-1 hover:bg-gray-100 rounded"
-                            title="Expand tax lines"
-                          >
-                            <ChevronDown className={`h-4 w-4 transition-transform ${expandedTaxRows.has(index) ? 'transform rotate-180' : ''}`} />
-                          </button>
-                          {items.length > 1 && (
+                      <td className="px-3 py-2 align-top">
+                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Tooltip content="Configure taxes">
                             <button
                               type="button"
-                              onClick={() => removeItem(index)}
-                              className="text-red-600 hover:text-red-700"
+                              onClick={() => setExpandedTaxRows(new Set(expandedTaxRows.has(index) ? [...expandedTaxRows].filter(i => i !== index) : [...expandedTaxRows, index]))}
+                              className={`p-1.5 rounded transition-colors ${
+                                (item.taxLines && item.taxLines.length > 0)
+                                  ? 'bg-blue-100 text-blue-600 hover:bg-blue-200 opacity-100'
+                                  : 'hover:bg-gray-100 text-gray-400 hover:text-gray-600'
+                              }`}
+                              title="Tax lines"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <ChevronDown className={`h-4 w-4 transition-transform ${expandedTaxRows.has(index) ? 'transform rotate-180' : ''}`} />
                             </button>
+                          </Tooltip>
+                          {items.length > 1 && (
+                            <Tooltip content="Delete line">
+                              <button
+                                type="button"
+                                onClick={() => removeItem(index)}
+                                className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </Tooltip>
                           )}
                         </div>
                       </td>
                     </tr>
                     {expandedTaxRows.has(index) && (
-                      <tr className="bg-gray-50">
-                        <td colSpan={6} className="px-4 py-4">
-                          <div className="space-y-3">
+                      <tr className="bg-blue-50 border-b border-blue-100">
+                        <td colSpan={9} className="px-3 py-4">
+                          <div className="space-y-3 pl-8">
                             <div className="flex items-center justify-between">
-                              <h4 className="text-sm font-semibold text-gray-700">Tax Lines</h4>
+                              <h4 className="text-sm font-semibold text-gray-700">Tax Configuration</h4>
                               <button
                                 type="button"
                                 onClick={() => addTaxLine(index)}
-                                className="flex items-center text-sm text-blue-600 hover:text-blue-700"
+                                className="flex items-center px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded transition-colors"
                               >
                                 <Plus className="h-3 w-3 mr-1" />
-                                Add Tax
+                                Add Tax Line
                               </button>
                             </div>
 
                             <div className="space-y-2">
                               {(item.taxLines || []).map((taxLine, taxIndex) => (
-                                <div key={taxIndex} className="flex items-center gap-2 bg-white p-3 rounded border border-gray-200">
+                                <div key={taxIndex} className="flex items-center gap-2 bg-white p-3 rounded border border-gray-200 shadow-sm">
                                   <select
-                                    className="flex-1 px-3 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                                    className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
                                     value={taxLine.taxType}
                                     onChange={(e) => updateTaxLine(index, taxIndex, 'taxType', e.target.value)}
                                   >
@@ -600,49 +817,56 @@ export default function NewInvoicePage() {
                                     <option value="WITHHOLDING">Withholding Tax</option>
                                   </select>
 
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    max="100"
-                                    placeholder="Rate %"
-                                    className="w-20 px-3 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
-                                    value={taxLine.rate}
-                                    onChange={(e) => updateTaxLine(index, taxIndex, 'rate', parseFloat(e.target.value) || 0)}
-                                  />
+                                  <div className="relative w-24">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      max="100"
+                                      placeholder="Rate"
+                                      className="w-full px-3 py-2 pr-6 border border-gray-300 rounded text-sm text-right focus:ring-2 focus:ring-blue-500"
+                                      value={taxLine.rate}
+                                      onChange={(e) => updateTaxLine(index, taxIndex, 'rate', parseFloat(e.target.value) || 0)}
+                                    />
+                                    <span className="absolute right-3 top-2 text-sm text-gray-500">%</span>
+                                  </div>
 
-                                  <label className="flex items-center gap-1 text-sm">
+                                  <label className="flex items-center gap-1.5 text-sm cursor-pointer px-3 py-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
                                     <input
                                       type="checkbox"
                                       checked={taxLine.isCompound || false}
                                       onChange={(e) => updateTaxLine(index, taxIndex, 'isCompound', e.target.checked)}
-                                      className="rounded"
+                                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                     />
                                     Compound
                                   </label>
 
-                                  <label className="flex items-center gap-1 text-sm">
+                                  <label className="flex items-center gap-1.5 text-sm cursor-pointer px-3 py-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
                                     <input
                                       type="checkbox"
                                       checked={taxLine.isWithholding || false}
                                       onChange={(e) => updateTaxLine(index, taxIndex, 'isWithholding', e.target.checked)}
-                                      className="rounded"
+                                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                     />
-                                    Withholding
+                                    WHT
                                   </label>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => removeTaxLine(index, taxIndex)}
-                                    className="text-red-600 hover:text-red-700 p-1"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </button>
+                                  <Tooltip content="Remove tax line">
+                                    <button
+                                      type="button"
+                                      onClick={() => removeTaxLine(index, taxIndex)}
+                                      className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 rounded transition-colors"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  </Tooltip>
                                 </div>
                               ))}
 
                               {(!item.taxLines || item.taxLines.length === 0) && (
-                                <p className="text-sm text-gray-500 py-2">No tax lines. Click "Add Tax" to add taxes for this item.</p>
+                                <div className="text-sm text-gray-500 py-3 text-center bg-white border border-dashed border-gray-300 rounded">
+                                  No tax lines configured. Click "Add Tax Line" to configure taxes.
+                                </div>
                               )}
                             </div>
                           </div>
@@ -651,47 +875,74 @@ export default function NewInvoicePage() {
                     )}
                   </React.Fragment>
                 ))}
+                
+                {/* Add new line row - QuickBooks style */}
+                <tr className="border-t-2 border-gray-300">
+                  <td colSpan={9} className="px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={addItem}
+                      className="w-full py-3 text-sm text-left text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors flex items-center justify-center font-medium"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Line
+                    </button>
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
 
-          {/* Totals */}
+          {/* Totals Section - QuickBooks style */}
           <div className="mt-6 flex justify-end">
-            <div className="w-72 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Subtotal:</span>
+            <div className="w-80 space-y-1 bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <div className="flex justify-between text-sm py-1.5">
+                <span className="text-gray-600">Subtotal</span>
                 <span className="font-medium text-gray-900">
                   {formatCurrency(totals.subtotal, currency)}
                 </span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Tax (excl. WHT):</span>
-                <span className="font-medium text-gray-900">{formatCurrency(totals.tax, currency)}</span>
-              </div>
-              <div className="flex justify-between text-sm border-t pt-2">
-                <span className="text-gray-600">Total (before WHT):</span>
-                <span className="font-medium text-gray-900">{formatCurrency(totals.total, currency)}</span>
+              {totals.tax > 0 && (
+                <div className="flex justify-between text-sm py-1.5">
+                  <span className="text-gray-600">Tax</span>
+                  <span className="font-medium text-gray-900">{formatCurrency(totals.tax, currency)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-base font-semibold border-t-2 border-gray-300 pt-2 mt-2">
+                <span className="text-gray-900">Total</span>
+                <span className="text-gray-900">{formatCurrency(totals.total, currency)}</span>
               </div>
               {totals.withholding > 0 && (
                 <>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-red-600">Withholding Tax:</span>
-                    <span className="font-medium text-red-600">-{formatCurrency(totals.withholding, currency)}</span>
+                  <div className="flex justify-between text-sm py-1.5 text-red-600">
+                    <span>Less: Withholding Tax</span>
+                    <span className="font-medium">-{formatCurrency(totals.withholding, currency)}</span>
                   </div>
-                  <div className="flex justify-between text-lg font-bold border-t pt-2 bg-blue-50 -mx-2 px-2 py-2 rounded">
-                    <span className="text-gray-900">Amount Due (net of WHT):</span>
-                    <span className="text-blue-600">{formatCurrency(totals.amountDue, currency)}</span>
+                  <div className="flex justify-between text-lg font-bold bg-blue-600 text-white -mx-4 -mb-4 px-4 py-3 rounded-b-lg mt-2">
+                    <span>Amount Due</span>
+                    <span>{formatCurrency(totals.amountDue, currency)}</span>
                   </div>
                 </>
               )}
-              {totals.withholding === 0 && (
-                <div className="flex justify-between text-lg font-bold border-t pt-2">
-                  <span className="text-gray-900">Total:</span>
-                  <span className="text-blue-600">{formatCurrency(totals.total, currency)}</span>
-                </div>
-              )}
             </div>
           </div>
+        </div>
+
+        {/* Notes Section */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Notes / Memo
+            <Tooltip content="Add any additional notes or instructions for the customer.">
+              <span className="ml-1 text-blue-500 cursor-help">?</span>
+            </Tooltip>
+          </label>
+          <textarea
+            rows={4}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            placeholder="Add notes, payment instructions, or special terms..."
+            value={formData.notes}
+            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          />
         </div>
 
         {/* Actions */}

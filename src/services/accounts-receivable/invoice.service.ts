@@ -21,6 +21,7 @@ export interface InvoiceTaxLineInput {
 
 export interface InvoiceItemInput {
   productId?: string;
+  serviceId?: string;
   description: string;
   quantity: number;
   unitPrice: number;
@@ -118,6 +119,7 @@ export class InvoiceService {
           items: {
             create: calculations.calculatedItems.map((line, index) => ({
               productId: line.item.productId,
+              serviceId: line.item.serviceId,
               description: line.item.description,
               quantity: new Decimal(line.item.quantity).toNumber(),
               unitPrice: new Decimal(line.item.unitPrice).toNumber(),

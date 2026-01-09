@@ -33,7 +33,8 @@ import {
   MapPin,
   Lock,
 } from 'lucide-react';
-import { hasFeature, getTierDisplayName, getTierBadgeColor, type PackageTier } from '@/lib/package-features';
+import { hasFeatureAccess, getTierDisplayName, getTierBadgeColor, type PackageTier } from '@/lib/package-gates';
+import { getBusinessModelProfile, isFeatureEnabledForBusiness, type BusinessModel } from '@/lib/business-models';
 
 interface User {
   id: string;
@@ -49,6 +50,7 @@ interface Organization {
   package?: PackageTier;
   onboardingCompleted?: boolean;
   industry?: string;
+  businessModel?: string;
 }
 
 export default function DashboardLayout({
@@ -159,7 +161,7 @@ export default function DashboardLayout({
     );
   }
 
-  const orgPackage = organization?.package || 'ADVANCED';
+  const orgPackage = organization?.package || 'PRO';
 
   const navigation = [
     {
@@ -229,9 +231,20 @@ export default function DashboardLayout({
       icon: Package,
       featureKey: 'inventory',
       children: [
-        { name: 'Products', href: `/${orgSlug}/inventory/products` },
+        { name: 'Products & Services', href: `/${orgSlug}/inventory/products` },
         { name: 'Stock Movements', href: `/${orgSlug}/inventory/movements` },
         { name: 'Adjustments', href: `/${orgSlug}/inventory/adjustments` },
+      ],
+    },
+    {
+      name: 'Services',
+      icon: Users,
+      featureKey: 'services',
+      children: [
+        { name: 'Service Catalog', href: `/${orgSlug}/services` },
+        { name: 'Bookings', href: `/${orgSlug}/services/bookings` },
+        { name: 'Deliveries', href: `/${orgSlug}/services/deliveries` },
+        { name: 'Time Tracking', href: `/${orgSlug}/services/time` },
       ],
     },
     {
@@ -422,17 +435,44 @@ export default function DashboardLayout({
     },
   ];
 
-  // Filter navigation based on package tier
-  const filteredNavigation = navigation.filter((item) => 
-    hasFeature(orgPackage, item.featureKey)
-  );
-
-  // Get missing features for upgrade prompt
-  const missingFeatures = navigation.filter((item) => 
-    !hasFeature(orgPackage, item.featureKey)
-  );
+  // Filter navigation based on business model
+  const businessModel = organization?.businessModel || 'GENERAL';
+  const businessProfile = getBusinessModelProfile(businessModel);
   
-  const showUpgradePrompt = missingFeatures.length > 0;
+  const filteredNavigation = navigation.filter((item) => {
+    // Always show dashboard, settings, and other core features
+    if (['dashboard', 'settings'].includes(item.featureKey)) {
+      return true;
+    }
+    
+    // Filter based on business model features
+    const featureMapping: Record<string, keyof typeof businessProfile.features> = {
+      'general-ledger': 'enableInvoicing', // Core accounting
+      'accounts-receivable': 'enableCustomers',
+      'accounts-payable': 'enableVendors', 
+      'inventory': 'enableInventoryManagement',
+      'manufacturing': 'enableManufacturing',
+      'services': 'enableServiceCatalog',
+      'projects': 'enableProjectManagement',
+      'warehouse': 'enableWarehouse',
+      'purchase-orders': 'enablePurchaseOrders',
+      'time-tracking': 'enableTimeTracking',
+      'field-service': 'enableFieldService',
+    };
+    
+    const featureKey = featureMapping[item.featureKey];
+    if (featureKey) {
+      return businessProfile.features[featureKey];
+    }
+    
+    // Show other items by default for compatibility
+    return true;
+  });
+
+  // No missing features - business model handles visibility
+  const missingFeatures: any[] = [];
+  
+  const showUpgradePrompt = false;
 
   function getGreeting() {
     const hour = new Date().getHours();

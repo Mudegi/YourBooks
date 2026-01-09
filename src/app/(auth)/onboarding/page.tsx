@@ -13,9 +13,12 @@ interface OnboardingData {
   fiscalYearStart: number;
   
   // Step 2
-  industry: string;
+  businessModel: string;
   
   // Step 3
+  industry: string;
+  
+  // Step 4
   bankName: string;
   accountNumber: string;
   openingBalance: number;
@@ -34,6 +37,7 @@ export default function OnboardingPage() {
     homeCountry: 'US',
     baseCurrency: 'USD',
     fiscalYearStart: 1,
+    businessModel: '',
     industry: '',
     bankName: '',
     accountNumber: '',
@@ -66,6 +70,7 @@ export default function OnboardingPage() {
         homeCountry: org.homeCountry || 'US',
         baseCurrency: org.baseCurrency || 'USD',
         fiscalYearStart: org.fiscalYearStart || 1,
+        businessModel: org.businessModel || '',
         industry: org.industry || '',
       }));
     } catch (err) {
@@ -92,12 +97,18 @@ export default function OnboardingPage() {
         }
         return true;
       case 2:
+        if (!formData.businessModel) {
+          setError('Please select a business type');
+          return false;
+        }
+        return true;
+      case 3:
         if (!formData.industry) {
           setError('Please select an industry');
           return false;
         }
         return true;
-      case 3:
+      case 4:
         if (!formData.bankName.trim()) {
           setError('Bank name is required');
           return false;
@@ -147,10 +158,33 @@ export default function OnboardingPage() {
         setLoading(false);
       }
     } else if (currentStep === 2) {
+      // Save business model
+      setLoading(true);
+      try {
+        const response = await fetch('/api/onboarding/business-setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            businessModel: formData.businessModel,
+          }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Failed to save business type');
+        }
+
+        setCurrentStep(3);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    } else if (currentStep === 3) {
       // Save industry and seed Chart of Accounts
       setLoading(true);
       try {
-        console.log('Step 2: Seeding COA for industry:', formData.industry);
+        console.log('Step 3: Seeding COA for industry:', formData.industry);
         
         const response = await fetch('/api/onboarding/seed-coa', {
           method: 'POST',
@@ -168,13 +202,13 @@ export default function OnboardingPage() {
         const data = await response.json();
         console.log('COA seed response:', data);
 
-        setCurrentStep(3);
+        setCurrentStep(4);
       } catch (err: any) {
         setError(err.message);
       } finally {
         setLoading(false);
       }
-    } else if (currentStep === 3) {
+    } else if (currentStep === 4) {
       // Save bank details and complete onboarding
       setLoading(true);
       try {
@@ -285,13 +319,13 @@ export default function OnboardingPage() {
             <span className="text-white font-bold text-2xl">Y</span>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to YourBooks!</h1>
-          <p className="text-gray-600">Let's get your accounting system set up in just 3 simple steps</p>
+          <p className="text-gray-600">Let's get your accounting system set up in just 4 simple steps</p>
         </div>
 
         {/* Progress Bar */}
         <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
-            {[1, 2, 3].map((step) => (
+            {[1, 2, 3, 4].map((step) => (
               <div key={step} className="flex items-center flex-1">
                 <div
                   className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold ${
@@ -304,7 +338,7 @@ export default function OnboardingPage() {
                 >
                   {step < currentStep ? <CheckCircle2 className="w-6 h-6" /> : step}
                 </div>
-                {step < 3 && (
+                {step < 4 && (
                   <div
                     className={`flex-1 h-1 mx-2 ${
                       step < currentStep ? 'bg-green-500' : 'bg-gray-200'
@@ -319,9 +353,12 @@ export default function OnboardingPage() {
               Company Details
             </span>
             <span className={currentStep >= 2 ? 'text-blue-600 font-medium' : 'text-gray-500'}>
-              Industry Setup
+              Business Type
             </span>
             <span className={currentStep >= 3 ? 'text-blue-600 font-medium' : 'text-gray-500'}>
+              Industry Setup
+            </span>
+            <span className={currentStep >= 4 ? 'text-blue-600 font-medium' : 'text-gray-500'}>
               Bank Account
             </span>
           </div>
@@ -436,8 +473,105 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 2: Industry Selection */}
+          {/* Step 2: Business Type Selection */}
           {currentStep === 2 && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">What Type of Business Do You Run?</h2>
+                <p className="text-gray-600">
+                  We'll customize your experience based on your business model
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  {
+                    id: 'CONSULTING',
+                    name: 'Professional Services',
+                    description: 'Sell expertise and time-based services',
+                    icon: '👔',
+                    category: 'Service-Based',
+                    examples: ['Consulting', 'Legal', 'Accounting', 'Marketing']
+                  },
+                  {
+                    id: 'FREELANCE',
+                    name: 'Freelance/Creative',
+                    description: 'Individual services and creative work',
+                    icon: '🎨',
+                    category: 'Service-Based',
+                    examples: ['Design', 'Writing', 'Photography', 'Development']
+                  },
+                  {
+                    id: 'RETAIL',
+                    name: 'Retail Business',
+                    description: 'Sell physical products to customers',
+                    icon: '🛍️',
+                    category: 'Product-Based',
+                    examples: ['Online store', 'Boutique', 'Electronics', 'Fashion']
+                  },
+                  {
+                    id: 'MANUFACTURER',
+                    name: 'Manufacturing',
+                    description: 'Make and sell products',
+                    icon: '🏭',
+                    category: 'Product-Based',
+                    examples: ['Factory', 'Workshop', 'Food production', 'Assembly']
+                  },
+                  {
+                    id: 'MIXED_BUSINESS',
+                    name: 'Products + Services',
+                    description: 'Sell both products AND provide services',
+                    icon: '🔧',
+                    category: 'Mixed Business',
+                    examples: ['Construction', 'Auto repair', 'IT + Hardware', 'Restaurant']
+                  },
+                  {
+                    id: 'FULL_FEATURED',
+                    name: 'Enterprise/Testing',
+                    description: 'Access all features (perfect for testing)',
+                    icon: '🚀',
+                    category: 'Enterprise',
+                    examples: ['Large business', 'Testing', 'All modules', 'Full access']
+                  }
+                ].map((type) => (
+                  <button
+                    key={type.id}
+                    type="button"
+                    onClick={() => handleInputChange('businessModel', type.id)}
+                    className={`p-6 border-2 rounded-lg text-left transition-all ${
+                      formData.businessModel === type.id
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-300'
+                    }`}
+                  >
+                    <div className="flex items-start space-x-4">
+                      <div className="text-3xl">{type.icon}</div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900">{type.name}</div>
+                        <div className="text-sm text-gray-600 mt-1">{type.description}</div>
+                        <div className="mt-3">
+                          <p className="text-xs text-gray-500 mb-1">Examples:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {type.examples.map((example) => (
+                              <span 
+                                key={example}
+                                className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded"
+                              >
+                                {example}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Industry Selection */}
+          {currentStep === 3 && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">Select Your Industry</h2>
@@ -466,8 +600,8 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 3: Bank Account */}
-          {currentStep === 3 && (
+          {/* Step 4: Bank Account */}
+          {currentStep === 4 && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">Initial Bank Account</h2>
@@ -549,7 +683,7 @@ export default function OnboardingPage() {
                 </>
               ) : (
                 <>
-                  {currentStep === 3 ? 'Complete Setup' : 'Next'}
+                  {currentStep === 4 ? 'Complete Setup' : 'Next'}
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </>
               )}

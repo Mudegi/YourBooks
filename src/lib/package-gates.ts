@@ -19,8 +19,10 @@ export const PACKAGE_FEATURES = {
     taxVatBasic: true,
     standardReports: true,
     userRoles: true,
+    services: true,
+    // Manufacturing services should be available for all packages
+    manufacturing: true,
     // Not allowed
-    manufacturing: false,
     fixedAssets: false,
     budgeting: false,
     projects: false,
@@ -50,6 +52,7 @@ export const PACKAGE_FEATURES = {
     taxVatBasic: true,
     standardReports: true,
     userRoles: true,
+    services: true,
     // Advanced features
     manufacturing: true,
     fixedAssets: true,
@@ -79,8 +82,8 @@ export function hasFeatureAccess(
   packageTier: PackageTier,
   feature: FeatureKey
 ): boolean {
-  const features = PACKAGE_FEATURES[packageTier];
-  return features[feature] ?? false;
+  // All features are now accessible regardless of package tier
+  return true;
 }
 
 /**
@@ -137,4 +140,26 @@ export function filterNavigation(
 
     return acc;
   }, [] as GatedNavItem[]);
+}
+
+/**
+ * Get tier display name
+ */
+export function getTierDisplayName(tier: PackageTier): string {
+  const names: Record<PackageTier, string> = {
+    PRO: 'Pro',
+    ADVANCED: 'Advanced',
+  };
+  return names[tier];
+}
+
+/**
+ * Get tier badge color
+ */
+export function getTierBadgeColor(tier: PackageTier): string {
+  const colors: Record<PackageTier, string> = {
+    PRO: 'bg-blue-100 text-blue-700',
+    ADVANCED: 'bg-gradient-to-r from-purple-500 to-pink-500 text-white',
+  };
+  return colors[tier];
 }

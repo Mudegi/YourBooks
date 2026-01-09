@@ -1,13 +1,14 @@
 /**
- * API: Cost Variances Management
- * POST /api/[orgSlug]/costing/variances - Record cost variance
- * GET /api/[orgSlug]/costing/variances - List cost variances
+ * API: Cost Variances Management - Enhanced with Financial Truth Engine
+ * POST /api/[orgSlug]/costing/variances - Record comprehensive cost variance with GL posting
+ * GET /api/[orgSlug]/costing/variances - List cost variances with summary analysis
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/auth';
+import { verifyAuth } from '@/lib/api-auth';
 import prisma from '@/lib/prisma';
 import { hasPermission, Permission } from '@/lib/permissions';
+import VarianceAnalysisEngine from '@/services/costing/variance-analysis.engine';
 
 export async function POST(
   request: NextRequest,
@@ -36,21 +37,24 @@ export async function POST(
     const body = await request.json();
     const {
       productId,
-      varianceType,
-      standardAmount,
-      actualAmount,
-      varianceAmount,
-      date,
       transactionId,
       referenceType,
       referenceId,
+      standardCosts,
+      actualCosts,
+      quantity,
+      transactionCurrency,
+      exchangeRate,
+      branchId,
+      reasonCode,
       notes,
+      postToGL = false,
     } = body;
 
-    // Validation
-    if (!productId || !varianceType || standardAmount === undefined || actualAmount === undefined || !date) {
+    // Enhanced validation
+    if (!productId || !standardCosts || !actualCosts || !quantity) {
       return NextResponse.json(
-        { error: 'Missing required fields: productId, varianceType, standardAmount, actualAmount, date' },
+        { error: 'Missing required fields: productId, standardCosts, actualCosts, quantity' },
         { status: 400 }
       );
     }
@@ -64,43 +68,46 @@ export async function POST(
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    // Calculate variance if not provided
-    const calculatedVariance = varianceAmount !== undefined ? varianceAmount : actualAmount - standardAmount;
+    // Initialize variance analysis engine
+    const varianceEngine = new VarianceAnalysisEngine(prisma);
 
-    // Create cost variance
-    const costVariance = await prisma.costVariance.create({
-      data: {
-        organizationId: organization.id,
-        productId,
-        varianceType,
-        standardAmount,
-        actualAmount,
-        varianceAmount: calculatedVariance,
-        date: new Date(date),
-        transactionId,
-        referenceType,
-        referenceId,
-        notes,
+    // Calculate comprehensive variances with localization
+    const varianceResult = await varianceEngine.calculateVariances({
+      organizationId: organization.id,
+      productId,
+      transactionId,
+      referenceType,
+      referenceId,
+      standardCosts: {
+        materialCost: standardCosts.materialCost || 0,
+        laborCost: standardCosts.laborCost || 0,
+        overheadCost: standardCosts.overheadCost || 0,
+        totalCost: standardCosts.totalCost || 0,
       },
-      include: {
-        product: {
-          select: {
-            id: true,
-            name: true,
-            sku: true,
-          },
-        },
+      actualCosts: {
+        materialCost: actualCosts.materialCost || 0,
+        laborCost: actualCosts.laborCost || 0,
+        overheadCost: actualCosts.overheadCost || 0,
+        totalCost: actualCosts.totalCost || 0,
       },
+      quantity,
+      transactionCurrency,
+      exchangeRate,
+      branchId,
+      reasonCode,
+      notes,
+      postToGL,
     });
 
     return NextResponse.json({
       success: true,
-      data: costVariance,
+      data: varianceResult,
+      message: 'Comprehensive variance analysis completed',
     });
   } catch (error: any) {
-    console.error('Error creating cost variance:', error);
+    console.error('Error recording cost variance:', error);
     return NextResponse.json(
-      { error: 'Failed to create cost variance', details: error.message },
+      { error: 'Failed to record cost variance', details: error.message },
       { status: 500 }
     );
   }
@@ -123,7 +130,7 @@ export async function GET(
 
     const organization = await prisma.organization.findUnique({
       where: { slug: params.orgSlug },
-      select: { id: true },
+      select: { id: true, baseCurrency: true },
     });
 
     if (!organization) {
@@ -150,11 +157,12 @@ export async function GET(
     }
 
     if (startDate || endDate) {
-      where.date = {};
-      if (startDate) where.date.gte = new Date(startDate);
-      if (endDate) where.date.lte = new Date(endDate);
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) where.createdAt.lte = new Date(endDate);
     }
 
+    // Get variances with enhanced data
     const costVariances = await prisma.costVariance.findMany({
       where,
       include: {
@@ -165,31 +173,73 @@ export async function GET(
             sku: true,
           },
         },
+        transaction: {
+          select: {
+            id: true,
+            transactionType: true,
+            referenceId: true,
+          },
+        },
       },
       orderBy: {
-        date: 'desc',
+        createdAt: 'desc',
       },
     });
 
-    // Calculate summary statistics
+    // Calculate enhanced summary statistics
+    const totalVariance = costVariances.reduce((sum, v) => sum + v.totalVariance.toNumber(), 0);
+    const materialVariance = costVariances.reduce((sum, v) => sum + (v.materialVariance?.toNumber() || 0), 0);
+    const laborVariance = costVariances.reduce((sum, v) => sum + (v.laborVariance?.toNumber() || 0), 0);
+    const overheadVariance = costVariances.reduce((sum, v) => sum + (v.overheadVariance?.toNumber() || 0), 0);
+    
+    const favorableVariances = costVariances.filter(v => v.totalVariance.toNumber() < 0).length;
+    const unfavorableVariances = costVariances.filter(v => v.totalVariance.toNumber() > 0).length;
+
+    // Group by variance type
+    const byType: Record<string, number> = {};
+    costVariances.forEach(v => {
+      if (!byType[v.varianceType]) {
+        byType[v.varianceType] = 0;
+      }
+      byType[v.varianceType] += v.totalVariance.toNumber();
+    });
+
     const summary = {
-      totalVariance: costVariances.reduce((sum, v) => sum + v.varianceAmount, 0),
-      favorableVariances: costVariances.filter(v => v.varianceAmount < 0).length,
-      unfavorableVariances: costVariances.filter(v => v.varianceAmount > 0).length,
-      byType: {} as Record<string, number>,
+      totalVariance,
+      materialVariance,
+      laborVariance,
+      overheadVariance,
+      favorableVariances,
+      unfavorableVariances,
+      byType,
+      currency: organization.baseCurrency,
     };
 
-    costVariances.forEach(v => {
-      if (!summary.byType[v.varianceType]) {
-        summary.byType[v.varianceType] = 0;
-      }
-      summary.byType[v.varianceType] += v.varianceAmount;
-    });
+    // Transform data for response
+    const transformedVariances = costVariances.map(v => ({
+      id: v.id,
+      product: v.product,
+      varianceType: v.varianceType,
+      materialVariance: v.materialVariance?.toNumber() || 0,
+      laborVariance: v.laborVariance?.toNumber() || 0,
+      overheadVariance: v.overheadVariance?.toNumber() || 0,
+      totalVariance: v.totalVariance.toNumber(),
+      quantity: v.quantity.toNumber(),
+      date: v.createdAt.toISOString(),
+      referenceType: v.referenceType,
+      referenceId: v.referenceId,
+      transaction: v.transaction,
+      notes: v.notes,
+    }));
 
     return NextResponse.json({
       success: true,
-      data: costVariances,
+      data: transformedVariances,
       summary,
+      meta: {
+        total: costVariances.length,
+        baseCurrency: organization.baseCurrency,
+      },
     });
   } catch (error: any) {
     console.error('Error fetching cost variances:', error);

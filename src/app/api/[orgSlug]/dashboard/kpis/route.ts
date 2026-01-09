@@ -14,20 +14,20 @@ export async function GET(_: Request, { params }: { params: { orgSlug: string } 
     const [invoiceAgg, billAgg, customerCount, vendorCount] = await Promise.all([
       prisma.invoice.aggregate({
         where: { organizationId: org.id },
-        _sum: { totalAmount: true },
+        _sum: { total: true },
         _count: true,
-      }).catch(() => ({ _sum: { totalAmount: 0 }, _count: 0 })),
+      }).catch(() => ({ _sum: { total: 0 }, _count: 0 })),
       prisma.bill.aggregate({
         where: { organizationId: org.id },
-        _sum: { totalAmount: true },
+        _sum: { total: true },
         _count: true,
-      }).catch(() => ({ _sum: { totalAmount: 0 }, _count: 0 })),
+      }).catch(() => ({ _sum: { total: 0 }, _count: 0 })),
       prisma.customer.count({ where: { organizationId: org.id } }).catch(() => 0),
       prisma.vendor.count({ where: { organizationId: org.id } }).catch(() => 0),
     ]);
 
-    const revenue = Number(invoiceAgg._sum.totalAmount || 0);
-    const payables = Number(billAgg._sum.totalAmount || 0);
+    const revenue = Number(invoiceAgg._sum.total || 0);
+    const payables = Number(billAgg._sum.total || 0);
 
     return NextResponse.json({
       kpis: {

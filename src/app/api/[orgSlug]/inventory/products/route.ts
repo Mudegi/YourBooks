@@ -30,6 +30,7 @@ export async function GET(_req: NextRequest, { params }: { params: { orgSlug: st
         id: p.id,
         sku: p.sku,
         name: p.name,
+        description: p.description,
         productType: p.productType,
         category: p.category,
         unitOfMeasure: p.unitOfMeasure ? `${p.unitOfMeasure.name} (${p.unitOfMeasure.abbreviation})` : 'N/A',

@@ -6,6 +6,8 @@ interface BillItem {
   description: string;
   quantity: number;
   unitPrice: number;
+  productId?: string;
+  serviceId?: string;
   accountId: string; // Expense account
   taxAmount: number;
   taxRate?: number; // VAT rate for this item
@@ -222,6 +224,8 @@ export class BillService {
               description: item.description,
               quantity: item.quantity.toString(),
               unitPrice: item.unitPrice.toString(),
+              productId: item.productId,
+              serviceId: item.serviceId,
               taxAmount: (item.taxAmount || 0).toString(),
               total: (item.quantity * item.unitPrice + (item.taxAmount || 0)).toString(),
               accountId: item.accountId,

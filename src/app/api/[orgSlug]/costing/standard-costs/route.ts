@@ -5,9 +5,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { verifyAuth } from '@/lib/api-auth';
 import { hasPermission, Permission } from '@/lib/permissions';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(
   request: NextRequest,
@@ -19,7 +19,6 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check permissions
     if (!hasPermission(payload.role, Permission.MANAGE_STANDARD_COSTS)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
@@ -34,6 +33,7 @@ export async function POST(
     }
 
     const body = await request.json();
+    
     const {
       productId,
       costingMethod,
@@ -74,7 +74,7 @@ export async function POST(
         materialCost,
         laborCost,
         overheadCost,
-        totalCost,
+        totalStandardCost: totalCost,
         effectiveFrom: new Date(effectiveFrom),
         effectiveTo: effectiveTo ? new Date(effectiveTo) : null,
         notes,
@@ -94,6 +94,7 @@ export async function POST(
       success: true,
       data: standardCost,
     });
+
   } catch (error: any) {
     console.error('Error creating standard cost:', error);
     return NextResponse.json(
@@ -113,14 +114,13 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check permissions
     if (!hasPermission(payload.role, Permission.VIEW_STANDARD_COSTS)) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const organization = await prisma.organization.findUnique({
       where: { slug: params.orgSlug },
-      select: { id: true },
+      select: { id: true, baseCurrency: true },
     });
 
     if (!organization) {
@@ -131,8 +131,9 @@ export async function GET(
     const productId = searchParams.get('productId');
     const costingMethod = searchParams.get('costingMethod');
     const effectiveDate = searchParams.get('effectiveDate');
+    const status = searchParams.get('status');
+    const includeLocalized = searchParams.get('includeLocalized') === 'true';
 
-    // Build filter
     const where: any = {
       organizationId: organization.id,
     };
@@ -143,6 +144,10 @@ export async function GET(
 
     if (costingMethod) {
       where.costingMethod = costingMethod;
+    }
+
+    if (status) {
+      where.status = status;
     }
 
     if (effectiveDate) {
@@ -162,18 +167,44 @@ export async function GET(
             id: true,
             name: true,
             sku: true,
+            category: true,
           },
         },
       },
-      orderBy: {
-        effectiveFrom: 'desc',
-      },
+      orderBy: [
+        { effectiveFrom: 'desc' },
+      ],
+    });
+
+    // Transform data to include currency formatting
+    const transformedCosts = standardCosts.map((cost) => {
+      const baseCost = {
+        id: cost.id,
+        product: cost.product,
+        costingMethod: cost.costingMethod,
+        materialCost: Number(cost.materialCost),
+        laborCost: Number(cost.laborCost),
+        overheadCost: Number(cost.overheadCost),
+        totalCost: Number(cost.totalStandardCost),
+        effectiveFrom: cost.effectiveFrom,
+        effectiveTo: cost.effectiveTo,
+        isActive: cost.isActive,
+        notes: cost.notes,
+        createdAt: cost.createdAt,
+        updatedAt: cost.updatedAt,
+      };
+
+      return baseCost;
     });
 
     return NextResponse.json({
       success: true,
-      data: standardCosts,
+      data: transformedCosts,
+      organization: {
+        baseCurrency: organization.baseCurrency,
+      },
     });
+
   } catch (error: any) {
     console.error('Error fetching standard costs:', error);
     return NextResponse.json(

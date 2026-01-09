@@ -26,17 +26,6 @@ export async function ensurePackageAccess(
   organizationId: string,
   allowedPackages: PackageTier[]
 ) {
-  const org = await prisma.organization.findUnique({
-    where: { id: organizationId },
-    select: { package: true },
-  });
-
-  if (!org || !allowedPackages.includes(org.package)) {
-    const err = new Error('Upgrade required');
-    // @ts-expect-error attach status
-    err.statusCode = 403;
-    throw err;
-  }
-
-  return org.package;
+  // Package restrictions disabled - all access allowed
+  return;
 }

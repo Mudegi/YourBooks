@@ -78,7 +78,8 @@ async function handlePostBuildProduct(
       );
     }
 
-    await ensurePackageAccess(org.id, [PackageTier.ADVANCED]);
+    // Services module should work for every package - remove package tier restriction
+    // await ensurePackageAccess(org.id, [PackageTier.ADVANCED]);
 
     // Get current user (in real app, from session/auth)
     // For now, using a placeholder
@@ -159,7 +160,8 @@ async function handleGetAssemblies(
       );
     }
 
-    await ensurePackageAccess(org.id, [PackageTier.ADVANCED]);
+    // Services module should work for every package - remove package tier restriction
+    // await ensurePackageAccess(org.id, [PackageTier.ADVANCED]);
 
     // Parse query parameters
     const url = new URL(request.url);

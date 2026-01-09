@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
           onboardingCompleted: true,
           legalName: true,
           homeCountry: true,
+          businessModel: true,
         },
       });
     }

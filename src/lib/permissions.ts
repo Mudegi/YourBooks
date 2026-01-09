@@ -36,6 +36,10 @@ export function hasPermission(
  * Available permissions in the system
  */
 export enum Permission {
+  // Organization Management
+  VIEW_ORGANIZATION = 'view:organization',
+  MANAGE_ORGANIZATION = 'manage:organization',
+
   // General Ledger
   VIEW_CHART_OF_ACCOUNTS = 'view:chart_of_accounts',
   MANAGE_CHART_OF_ACCOUNTS = 'manage:chart_of_accounts',
@@ -194,6 +198,21 @@ export enum Permission {
   MANAGE_COST_REVALUATIONS = 'manage:cost_revaluations',
   APPROVE_COST_REVALUATIONS = 'approve:cost_revaluations',
 
+  // Services
+  VIEW_SERVICES = 'view:services',
+  CREATE_SERVICES = 'create:services',
+  MANAGE_SERVICES = 'manage:services',
+  VIEW_SERVICE_BOOKINGS = 'view:service_bookings',
+  CREATE_SERVICE_BOOKINGS = 'create:service_bookings',
+  MANAGE_SERVICE_BOOKINGS = 'manage:service_bookings',
+  APPROVE_SERVICE_BOOKINGS = 'approve:service_bookings',
+  VIEW_SERVICE_DELIVERIES = 'view:service_deliveries',
+  CREATE_SERVICE_DELIVERIES = 'create:service_deliveries',
+  MANAGE_SERVICE_DELIVERIES = 'manage:service_deliveries',
+  LOG_SERVICE_TIME = 'log:service_time',
+  VIEW_SERVICE_TIME = 'view:service_time',
+  APPROVE_SERVICE_TIME = 'approve:service_time',
+
   // Planning
   VIEW_DEMAND_FORECASTS = 'view:demand_forecasts',
   MANAGE_DEMAND_FORECASTS = 'manage:demand_forecasts',
@@ -294,6 +313,11 @@ const VIEWER_PERMISSIONS: Permission[] = [
   Permission.VIEW_TAX_RULES,
   Permission.VIEW_TAX_EXEMPTIONS,
   Permission.VIEW_LOCALIZATION,
+  // Services view
+  Permission.VIEW_SERVICES,
+  Permission.VIEW_SERVICE_BOOKINGS,
+  Permission.VIEW_SERVICE_DELIVERIES,
+  Permission.VIEW_SERVICE_TIME,
 ];
 
 const MANAGER_PERMISSIONS: Permission[] = [
@@ -331,6 +355,14 @@ const MANAGER_PERMISSIONS: Permission[] = [
   Permission.MANAGE_QUALITY_HOLDS,
   Permission.MANAGE_NCR,
   Permission.MANAGE_CAPA,
+  // Services management
+  Permission.CREATE_SERVICES,
+  Permission.MANAGE_SERVICES,
+  Permission.CREATE_SERVICE_BOOKINGS,
+  Permission.MANAGE_SERVICE_BOOKINGS,
+  Permission.CREATE_SERVICE_DELIVERIES,
+  Permission.MANAGE_SERVICE_DELIVERIES,
+  Permission.LOG_SERVICE_TIME,
 ];
 
 const ACCOUNTANT_PERMISSIONS: Permission[] = [
@@ -396,6 +428,9 @@ const ACCOUNTANT_PERMISSIONS: Permission[] = [
     Permission.MANAGE_TAX_RULES,
     Permission.MANAGE_TAX_EXEMPTIONS,
     Permission.MANAGE_LOCALIZATION,
+    // Service approvals
+    Permission.APPROVE_SERVICE_BOOKINGS,
+    Permission.APPROVE_SERVICE_TIME,
 ];
 
 const ADMIN_PERMISSIONS: Permission[] = [

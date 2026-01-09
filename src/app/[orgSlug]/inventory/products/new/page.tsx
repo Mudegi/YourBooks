@@ -49,8 +49,8 @@ export default function NewProductPage() {
         if (!response.ok) throw new Error('Failed to fetch units');
         const data = await response.json();
         setUnits(data);
-        // Set default to first unit if available
-        if (data.length > 0 && !form.unitOfMeasureId) {
+        // Set default to first unit if available and not a service
+        if (data.length > 0 && !form.unitOfMeasureId && form.productType !== 'SERVICE') {
           setForm((prev) => ({
             ...prev,
             unitOfMeasureId: data[0].id,
@@ -153,7 +153,8 @@ export default function NewProductPage() {
         throw new Error(json.error || 'Failed to create product');
       }
 
-      router.push(`/${orgSlug}/inventory/products`);
+      // Use replace instead of push to prevent back button loop
+      router.replace(`/${orgSlug}/inventory/products`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create product');
     } finally {
@@ -253,38 +254,40 @@ export default function NewProductPage() {
                   className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Unit of Measure</label>
-                <div className="mt-1 flex gap-2">
-                  <select
-                    name="unitOfMeasureId"
-                    value={form.unitOfMeasureId}
-                    onChange={onChange}
-                    className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    disabled={loadingUnits}
-                  >
-                    <option value="">
-                      {loadingUnits ? 'Loading units...' : 'Select a unit of measure'}
-                    </option>
-                    {units.map((unit) => (
-                      <option key={unit.id} value={unit.id}>
-                        {unit.name} ({unit.abbreviation})
-                        {unit.category && ` - ${unit.category}`}
+              {form.productType !== 'SERVICE' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Unit of Measure</label>
+                  <div className="mt-1 flex gap-2">
+                    <select
+                      name="unitOfMeasureId"
+                      value={form.unitOfMeasureId}
+                      onChange={onChange}
+                      className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      disabled={loadingUnits}
+                    >
+                      <option value="">
+                        {loadingUnits ? 'Loading units...' : 'Select a unit of measure'}
                       </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddUnitModal(true)}
-                    className="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm font-medium whitespace-nowrap"
-                    title="Add custom unit of measure"
-                  >
-                    + Add
-                  </button>
+                      {units.map((unit) => (
+                        <option key={unit.id} value={unit.id}>
+                          {unit.name} ({unit.abbreviation})
+                          {unit.category && ` - ${unit.category}`}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddUnitModal(true)}
+                      className="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm font-medium whitespace-nowrap"
+                      title="Add custom unit of measure"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">How this product is measured and sold.</p>
                 </div>
-                <p className="mt-1 text-xs text-gray-500">How this product is measured and sold.</p>
-              </div>
-              <div className="md:col-span-2">
+              )}
+              <div className={form.productType === 'SERVICE' ? 'md:col-span-2' : 'md:col-span-2'}>
                 <label className="block text-sm font-medium text-gray-700">Description</label>
                 <textarea
                   name="description"

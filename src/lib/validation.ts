@@ -271,6 +271,84 @@ export const paymentSchema = z.object({
   notes: z.string().optional(),
 });
 
+// ============================================================================
+// COSTING
+// ============================================================================
+
+export const standardCostSchema = z.object({
+  productId: z.string().min(1, 'Product is required'),
+  costingMethod: z.enum([
+    'STANDARD',
+    'FIFO', 
+    'LIFO',
+    'WEIGHTED_AVERAGE',
+    'SPECIFIC_IDENTIFICATION'
+  ]).default('WEIGHTED_AVERAGE'),
+  materialCost: z.number().min(0, 'Material cost must be non-negative'),
+  laborCost: z.number().min(0, 'Labor cost must be non-negative'),
+  overheadCost: z.number().min(0, 'Overhead cost must be non-negative'),
+  costingVersion: z.string().optional(),
+  status: z.enum([
+    'DRAFT',
+    'PENDING_APPROVAL',
+    'APPROVED',
+    'FROZEN',
+    'REJECTED',
+    'EXPIRED',
+    'SUPERSEDED'
+  ]).default('DRAFT'),
+  effectiveFrom: z.coerce.date(),
+  effectiveTo: z.coerce.date().optional(),
+  validFrom: z.coerce.date().optional(),
+  validTo: z.coerce.date().optional(),
+  approvalRequired: z.boolean().default(false),
+  baseCurrency: z.string().length(3).default('USD'),
+  bomId: z.string().optional(),
+  routingId: z.string().optional(),
+  rollupSource: z.enum(['MANUAL', 'BOM_ROLLUP', 'IMPORT']).optional(),
+  notes: z.string().optional(),
+});
+
+export const bomRollupRequestSchema = z.object({
+  productId: z.string().min(1, 'Product ID is required'),
+  includeLocalization: z.boolean().default(true),
+  createStandardCost: z.boolean().default(false),
+});
+
+export const varianceAnalysisRequestSchema = z.object({
+  threshold: z.number().min(0).max(100).default(10),
+  productIds: z.array(z.string()).optional(),
+  dateRange: z.object({
+    from: z.coerce.date(),
+    to: z.coerce.date(),
+  }).optional(),
+});
+
+export const massUpdateRequestSchema = z.object({
+  filter: z.object({
+    categoryId: z.string().optional(),
+    costingMethod: z.enum([
+      'STANDARD',
+      'FIFO',
+      'LIFO', 
+      'WEIGHTED_AVERAGE',
+      'SPECIFIC_IDENTIFICATION'
+    ]).optional(),
+    effectiveDateRange: z.object({
+      from: z.coerce.date(),
+      to: z.coerce.date(),
+    }).optional(),
+    productIds: z.array(z.string()).optional(),
+  }),
+  adjustment: z.object({
+    type: z.enum(['PERCENTAGE', 'AMOUNT']),
+    materialAdjustment: z.number().optional(),
+    laborAdjustment: z.number().optional(),
+    overheadAdjustment: z.number().optional(),
+    reason: z.string().min(1, 'Reason for adjustment is required'),
+  }),
+});
+
 // Type exports
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
@@ -285,3 +363,7 @@ export type ProductInput = z.infer<typeof productSchema>;
 export type PaymentInput = z.infer<typeof paymentSchema>;
 export type BomInput = z.infer<typeof bomSchema>;
 export type WorkOrderInput = z.infer<typeof workOrderSchema>;
+export type StandardCostInput = z.infer<typeof standardCostSchema>;
+export type BomRollupRequestInput = z.infer<typeof bomRollupRequestSchema>;
+export type VarianceAnalysisRequestInput = z.infer<typeof varianceAnalysisRequestSchema>;
+export type MassUpdateRequestInput = z.infer<typeof massUpdateRequestSchema>;

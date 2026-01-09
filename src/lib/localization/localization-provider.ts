@@ -757,6 +757,300 @@ export class LocalizationProvider {
     }
   }
 
+  // Journal Entry Localization Methods
+  
+  /**
+   * Get country-specific journal entry metadata
+   * Supports compliance flags and formatting rules
+   */
+  async getEntryMetadata(context: LocalizationContext): Promise<{
+    complianceFlags: Record<string, any>;
+    displayRules: {
+      currencyFormat: string;
+      dateFormat: string;
+      amountPrecision: number;
+      showForeignCurrency: boolean;
+    };
+    validationRules: {
+      requiredFields: string[];
+      balanceCheckRequired: boolean;
+      attachmentRules: {
+        required: boolean;
+        maxSize: number;
+        allowedTypes: string[];
+      };
+      approvalWorkflow: {
+        required: boolean;
+        levels: number;
+        amountThresholds: Record<string, number>;
+      };
+    };
+    auditTrailRequirements: {
+      trackAllChanges: boolean;
+      retentionPeriod: number; // in years
+      immutableAfterPosting: boolean;
+    };
+  }> {
+    // Build entry-specific metadata based on country
+    return {
+      complianceFlags: this.buildComplianceFlags(context.country, {} as LocalizationMetadata),
+      displayRules: this.buildDisplayRules(context.country),
+      validationRules: this.buildValidationRules(context.country, {} as LocalizationMetadata),
+      auditTrailRequirements: this.buildAuditTrailRequirements(context.country),
+    };
+  }
+
+  /**
+   * Build country-specific compliance flags for journal entries
+   */
+  private buildComplianceFlags(country: string, metadata: LocalizationMetadata): Record<string, any> {
+    const flags: Record<string, any> = {};
+
+    switch (country) {
+      case 'UG': // Uganda
+        flags.vatTracking = {
+          required: true,
+          rateValidation: true,
+          uraCompliance: true,
+          efrisIntegration: metadata.digitalFiscalization?.eInvoicing || false,
+        };
+        flags.witholdingTax = {
+          tracking: true,
+          rates: [0.06, 0.1, 0.15], // Common WHT rates in Uganda
+          certificationRequired: true,
+        };
+        flags.foreignExchange = {
+          trackingRequired: true,
+          bankOfUgandaRates: true,
+          documentationRequired: true,
+        };
+        break;
+
+      case 'KE': // Kenya
+        flags.vatTracking = {
+          required: true,
+          rateValidation: true,
+          kraCompliance: true,
+          etimsIntegration: metadata.digitalFiscalization?.eInvoicing || false,
+        };
+        flags.witholdingTax = {
+          tracking: true,
+          rates: [0.05, 0.1, 0.2, 0.3], // Common WHT rates in Kenya
+          certificationRequired: true,
+        };
+        break;
+
+      case 'TZ': // Tanzania
+        flags.vatTracking = {
+          required: true,
+          rateValidation: true,
+          traCompliance: true,
+          vfdIntegration: metadata.digitalFiscalization?.eInvoicing || false,
+        };
+        break;
+
+      case 'US': // United States
+        flags.gaapCompliance = {
+          required: true,
+          fasb: true,
+          auditTrail: true,
+        };
+        flags.taxCompliance = {
+          irs: true,
+          stateCompliance: true,
+        };
+        break;
+
+      default:
+        // Global defaults
+        flags.basicCompliance = {
+          balanceRequired: true,
+          auditTrail: true,
+          documentationRequired: false,
+        };
+    }
+
+    return flags;
+  }
+
+  /**
+   * Build country-specific display rules
+   */
+  private buildDisplayRules(country: string) {
+    const rules = {
+      currencyFormat: 'en-US',
+      dateFormat: 'MM/dd/yyyy',
+      amountPrecision: 2,
+      showForeignCurrency: false,
+    };
+
+    switch (country) {
+      case 'UG':
+        rules.currencyFormat = 'en-UG';
+        rules.dateFormat = 'dd/MM/yyyy';
+        rules.showForeignCurrency = true;
+        break;
+      case 'KE':
+        rules.currencyFormat = 'sw-KE';
+        rules.dateFormat = 'dd/MM/yyyy';
+        rules.showForeignCurrency = true;
+        break;
+      case 'GB':
+        rules.currencyFormat = 'en-GB';
+        rules.dateFormat = 'dd/MM/yyyy';
+        rules.amountPrecision = 2;
+        break;
+    }
+
+    return rules;
+  }
+
+  /**
+   * Build country-specific validation rules
+   */
+  private buildValidationRules(country: string, metadata: LocalizationMetadata) {
+    const rules = {
+      requiredFields: ['transactionDate', 'description', 'amount'],
+      balanceCheckRequired: true,
+      attachmentRules: {
+        required: false,
+        maxSize: 10 * 1024 * 1024, // 10MB
+        allowedTypes: ['pdf', 'jpg', 'png', 'doc', 'docx'],
+      },
+      approvalWorkflow: {
+        required: false,
+        levels: 1,
+        amountThresholds: {},
+      },
+    };
+
+    switch (country) {
+      case 'UG':
+        rules.requiredFields.push('taxAmount');
+        rules.attachmentRules.required = true;
+        rules.approvalWorkflow.required = true;
+        rules.approvalWorkflow.levels = 2;
+        rules.approvalWorkflow.amountThresholds = {
+          level1: 1000000, // UGX 1M
+          level2: 5000000, // UGX 5M
+        };
+        break;
+
+      case 'KE':
+        rules.requiredFields.push('taxAmount', 'vatRate');
+        rules.attachmentRules.required = true;
+        rules.approvalWorkflow.required = true;
+        break;
+
+      case 'US':
+        rules.requiredFields.push('taxCategory');
+        rules.approvalWorkflow.required = true;
+        rules.approvalWorkflow.amountThresholds = {
+          level1: 10000, // USD 10K
+          level2: 50000, // USD 50K
+        };
+        break;
+    }
+
+    return rules;
+  }
+
+  /**
+   * Build country-specific audit trail requirements
+   */
+  private buildAuditTrailRequirements(country: string) {
+    const requirements = {
+      trackAllChanges: true,
+      retentionPeriod: 7, // years
+      immutableAfterPosting: true,
+    };
+
+    switch (country) {
+      case 'UG':
+        requirements.retentionPeriod = 6; // Uganda tax law requirement
+        requirements.immutableAfterPosting = true;
+        break;
+      case 'KE':
+        requirements.retentionPeriod = 5; // Kenya tax law requirement
+        break;
+      case 'US':
+        requirements.retentionPeriod = 7; // IRS requirement
+        break;
+    }
+
+    return requirements;
+  }
+
+  /**
+   * Validate journal entry compliance based on country rules
+   */
+  async validateJournalEntryCompliance(
+    context: LocalizationContext, 
+    entryData: any
+  ): Promise<{
+    isCompliant: boolean;
+    errors: string[];
+    warnings: string[];
+    recommendations: string[];
+  }> {
+    const metadata = await this.getEntryMetadata(context);
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const recommendations: string[] = [];
+
+    // Validate required fields
+    for (const field of metadata.validationRules.requiredFields) {
+      if (!entryData[field]) {
+        errors.push(`Missing required field: ${field}`);
+      }
+    }
+
+    // Validate balance
+    if (metadata.validationRules.balanceCheckRequired) {
+      const debits = entryData.ledgerEntries?.filter((e: any) => e.entryType === 'DEBIT') || [];
+      const credits = entryData.ledgerEntries?.filter((e: any) => e.entryType === 'CREDIT') || [];
+      
+      const debitTotal = debits.reduce((sum: number, e: any) => sum + e.amount, 0);
+      const creditTotal = credits.reduce((sum: number, e: any) => sum + e.amount, 0);
+      
+      if (Math.abs(debitTotal - creditTotal) > 0.01) {
+        errors.push('Journal entry is not balanced (Debits ≠ Credits)');
+      }
+    }
+
+    // Validate attachments
+    if (metadata.validationRules.attachmentRules.required) {
+      if (!entryData.attachments || entryData.attachments.length === 0) {
+        if (context.country === 'UG') {
+          errors.push('Supporting documents required for URA compliance');
+        } else {
+          warnings.push('Recommended to attach supporting documents');
+        }
+      }
+    }
+
+    // Country-specific validations
+    if (context.country === 'UG') {
+      // Uganda-specific VAT validation
+      if (entryData.taxAmount > 0) {
+        const vatAccounts = entryData.ledgerEntries?.filter((e: any) => 
+          e.account.code.includes('VAT') || e.account.name.toLowerCase().includes('vat')
+        ) || [];
+        
+        if (vatAccounts.length === 0) {
+          warnings.push('VAT amount specified but no VAT accounts found');
+        }
+      }
+    }
+
+    return {
+      isCompliant: errors.length === 0,
+      errors,
+      warnings,
+      recommendations,
+    };
+  }
+
   // Update localization configuration
   async updateLocalizationConfig(
     organizationId: string,
@@ -786,6 +1080,182 @@ export class LocalizationProvider {
         language: updates.language,
       });
     }
+  }
+
+  /**
+   * Get localized tax ID label (e.g., "TIN" for Uganda, "EIN" for US)
+   */
+  async getTaxIdLabel(countryCode: string): Promise<string> {
+    const labels: Record<string, string> = {
+      UG: 'TIN', // Tax Identification Number (Uganda)
+      KE: 'KRA PIN', // Kenya Revenue Authority PIN
+      TZ: 'TIN', // Tax Identification Number (Tanzania)
+      US: 'EIN', // Employer Identification Number
+      GB: 'VAT Registration Number',
+      CA: 'Business Number',
+      AU: 'ABN', // Australian Business Number
+      IN: 'GSTIN', // Goods and Services Tax Identification Number
+      ZA: 'Tax Reference Number',
+      NG: 'TIN', // Tax Identification Number (Nigeria)
+      GH: 'TIN', // Tax Identification Number (Ghana)
+      ZM: 'TPIN', // Taxpayer Identification Number (Zambia)
+      RW: 'TIN', // Tax Identification Number (Rwanda)
+    };
+
+    return labels[countryCode] || 'Tax ID';
+  }
+
+  /**
+   * Validate tax ID format based on country rules
+   */
+  async validateTaxId(taxId: string, countryCode: string): Promise<boolean> {
+    if (!taxId || !taxId.trim()) {
+      return false;
+    }
+
+    const cleanId = taxId.trim().toUpperCase();
+
+    // Country-specific validation patterns
+    const patterns: Record<string, RegExp> = {
+      // Uganda TIN: 10 digits
+      UG: /^\d{10}$/,
+      
+      // Kenya KRA PIN: Letter followed by 9 digits and letter (e.g., A123456789Z)
+      KE: /^[A-Z]\d{9}[A-Z]$/,
+      
+      // Tanzania TIN: 9 digits followed by letter
+      TZ: /^\d{9}[A-Z]$/,
+      
+      // US EIN: XX-XXXXXXX format
+      US: /^\d{2}-?\d{7}$/,
+      
+      // UK VAT: GB followed by 9 or 12 digits
+      GB: /^GB\d{9}(GB\d{3})?$/,
+      
+      // Canada Business Number: 9 digits
+      CA: /^\d{9}$/,
+      
+      // Australia ABN: 11 digits
+      AU: /^\d{11}$/,
+      
+      // India GSTIN: 15 alphanumeric characters
+      IN: /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}$/,
+      
+      // South Africa Tax Reference: 10 digits
+      ZA: /^\d{10}$/,
+      
+      // Nigeria TIN: 8-11 digits
+      NG: /^\d{8,11}$/,
+      
+      // Ghana TIN: Letter followed by 10-13 digits
+      GH: /^[A-Z]\d{10,13}$/,
+      
+      // Zambia TPIN: 10 digits
+      ZM: /^\d{10}$/,
+      
+      // Rwanda TIN: 9 digits
+      RW: /^\d{9}$/,
+    };
+
+    const pattern = patterns[countryCode];
+    if (!pattern) {
+      // No validation pattern defined - accept any non-empty value
+      return true;
+    }
+
+    return pattern.test(cleanId);
+  }
+
+  /**
+   * Get tax ID validation error message
+   */
+  async getTaxIdValidationMessage(countryCode: string): Promise<string> {
+    const messages: Record<string, string> = {
+      UG: 'TIN must be 10 digits (e.g., 1234567890)',
+      KE: 'KRA PIN must be in format: Letter + 9 digits + Letter (e.g., A123456789Z)',
+      TZ: 'TIN must be 9 digits followed by a letter (e.g., 123456789A)',
+      US: 'EIN must be in format: XX-XXXXXXX (e.g., 12-3456789)',
+      GB: 'VAT Registration Number must be GB followed by 9 or 12 digits',
+      CA: 'Business Number must be 9 digits',
+      AU: 'ABN must be 11 digits',
+      IN: 'GSTIN must be 15 alphanumeric characters in the specified format',
+      ZA: 'Tax Reference Number must be 10 digits',
+      NG: 'TIN must be 8-11 digits',
+      GH: 'TIN must be a letter followed by 10-13 digits',
+      ZM: 'TPIN must be 10 digits',
+      RW: 'TIN must be 9 digits',
+    };
+
+    return messages[countryCode] || 'Invalid tax ID format';
+  }
+
+  /**
+   * Get address field requirements for country
+   */
+  async getAddressFields(countryCode: string): Promise<{
+    required: string[];
+    optional: string[];
+    labels: Record<string, string>;
+  }> {
+    // East African countries (Uganda, Kenya, Tanzania) use District/Region
+    if (['UG', 'KE', 'TZ'].includes(countryCode)) {
+      return {
+        required: ['street', 'city', 'country'],
+        optional: ['street2', 'district', 'region', 'postalCode'],
+        labels: {
+          street: 'Street Address',
+          street2: 'Street Address Line 2',
+          city: 'City/Town',
+          district: 'District',
+          region: 'Region',
+          postalCode: 'Postal Code',
+          country: 'Country',
+        },
+      };
+    }
+
+    // Standard US/EU format
+    return {
+      required: ['street', 'city', 'state', 'postalCode', 'country'],
+      optional: ['street2'],
+      labels: {
+        street: 'Street Address',
+        street2: 'Street Address Line 2 (Optional)',
+        city: 'City',
+        state: 'State/Province',
+        postalCode: 'Postal/ZIP Code',
+        country: 'Country',
+      },
+    };
+  }
+
+  /**
+   * Get payment terms options for country
+   */
+  async getPaymentTermsOptions(countryCode: string): Promise<
+    Array<{ value: number; label: string; description: string }>
+  > {
+    // Common payment terms across all countries
+    const commonTerms = [
+      { value: 0, label: 'Due on Receipt', description: 'Payment due immediately' },
+      { value: 7, label: 'Net 7', description: 'Payment due within 7 days' },
+      { value: 15, label: 'Net 15', description: 'Payment due within 15 days' },
+      { value: 30, label: 'Net 30', description: 'Payment due within 30 days' },
+      { value: 45, label: 'Net 45', description: 'Payment due within 45 days' },
+      { value: 60, label: 'Net 60', description: 'Payment due within 60 days' },
+      { value: 90, label: 'Net 90', description: 'Payment due within 90 days' },
+    ];
+
+    // Country-specific terms can be added here
+    if (countryCode === 'UG') {
+      // Uganda often uses government payment terms
+      return [
+        ...commonTerms,
+        { value: 120, label: 'Net 120 (Gov)', description: 'Government contracts - 120 days' },
+      ];
+    }
+
+    return commonTerms;
   }
 }
 

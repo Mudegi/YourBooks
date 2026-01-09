@@ -144,3 +144,31 @@ export async function getCurrentUser(): Promise<{ id: string; email: string } | 
     return null;
   }
 }
+
+// API route helper - simplified auth verification
+export async function verifyAuth(request: any): Promise<SessionPayload | null> {
+  try {
+    // Get token from cookies
+    const token = request.cookies.get('auth-token')?.value;
+    
+    if (!token) {
+      return null;
+    }
+
+    // Verify token
+    const session = await verifyToken(token);
+    
+    if (!session || !session.userId) {
+      return null;
+    }
+
+    return {
+      userId: session.userId,
+      email: session.email,
+      organizationId: session.organizationId,
+      role: session.role
+    };
+  } catch {
+    return null;
+  }
+}

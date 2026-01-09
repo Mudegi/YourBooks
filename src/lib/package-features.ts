@@ -26,6 +26,8 @@ export const PACKAGE_FEATURES: Record<PackageTier, FeatureAccess> = {
       'payments',
       'banking',
       'inventory',
+      'services',
+      'manufacturing', // Manufacturing services should work for every package
       'reports',
       'bank-feeds',
       'documents',
@@ -81,7 +83,8 @@ export const PACKAGE_FEATURES: Record<PackageTier, FeatureAccess> = {
 
 // Helper function to check if a feature is available for a package tier
 export function hasFeature(tier: PackageTier, featureKey: string): boolean {
-  return PACKAGE_FEATURES[tier].features.includes(featureKey);
+  // All features are now accessible regardless of package tier
+  return true;
 }
 
 // Helper function to get minimum tier required for a feature

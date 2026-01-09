@@ -56,12 +56,18 @@ export default function ProductsPage() {
 
   return (
     <div className="p-6">
-      <button onClick={() => router.back()} className="flex items-center gap-2 text-blue-600 mb-4 hover:text-blue-800">
-        <ArrowLeft className="w-4 h-4" /> Back
-      </button>
+      <div className="flex items-center gap-4 mb-6">
+        <Link 
+          href={`/${orgSlug}/dashboard`}
+          className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" /> 
+          Back to Dashboard
+        </Link>
+      </div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Products</h1>
+          <h1 className="text-3xl font-bold">Products & Services</h1>
           <p className="text-gray-600">Track inventory items, services, and non-inventory SKUs.</p>
         </div>
         <Link
