@@ -579,25 +579,25 @@ export default function NewInvoicePage() {
                   <th className="px-3 py-3 text-left text-sm font-semibold text-gray-700 bg-gray-50">
                     #
                   </th>
-                  <th className="px-3 py-3 text-left text-sm font-semibold text-gray-700 bg-gray-50" style={{minWidth: '200px'}}>
+                  <th className="px-2 py-2 text-left text-xs font-semibold text-gray-700 bg-gray-50 min-w-[120px]">
                     Product / Service
                   </th>
-                  <th className="px-3 py-3 text-left text-sm font-semibold text-gray-700 bg-gray-50" style={{minWidth: '250px'}}>
+                  <th className="px-2 py-2 text-left text-xs font-semibold text-gray-700 bg-gray-50 min-w-[120px]">
                     Description
                   </th>
-                  <th className="px-3 py-3 text-right text-sm font-semibold text-gray-700 bg-gray-50 w-24">
+                  <th className="px-2 py-2 text-right text-xs font-semibold text-gray-700 bg-gray-50 min-w-[100px]">
                     Qty
                   </th>
-                  <th className="px-3 py-3 text-right text-sm font-semibold text-gray-700 bg-gray-50 w-32">
+                  <th className="px-2 py-2 text-right text-xs font-semibold text-gray-700 bg-gray-50 min-w-[120px]">
                     Rate
                   </th>
-                  <th className="px-3 py-3 text-right text-sm font-semibold text-gray-700 bg-gray-50 w-28">
+                  <th className="px-2 py-2 text-right text-xs font-semibold text-gray-700 bg-gray-50 min-w-[120px]">
                     Discount
                   </th>
-                  <th className="px-3 py-3 text-right text-sm font-semibold text-gray-700 bg-gray-50 w-24">
+                  <th className="px-2 py-2 text-right text-xs font-semibold text-gray-700 bg-gray-50 w-16">
                     Tax %
                   </th>
-                  <th className="px-3 py-3 text-right text-sm font-semibold text-gray-700 bg-gray-50 w-36">
+                  <th className="px-2 py-2 text-right text-xs font-semibold text-gray-700 bg-gray-50 w-28">
                     Amount
                   </th>
                   <th className="px-3 py-3 bg-gray-50 w-20"></th>
@@ -700,7 +700,7 @@ export default function NewInvoicePage() {
                           min="0"
                           step="0.01"
                           required
-                          className="w-full px-2 py-2 border border-gray-300 rounded text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all hover:border-gray-400"
+                          className="w-full min-w-[90px] px-2 py-1 border border-gray-300 rounded text-xs text-right text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all hover:border-gray-400"
                           value={item.quantity}
                           onChange={(e) => updateItem(index, 'quantity', e.target.value)}
                           onKeyDown={(e) => handleKeyDown(e, index, 'quantity')}
@@ -714,7 +714,7 @@ export default function NewInvoicePage() {
                             min="0"
                             step="0.01"
                             required
-                            className="w-full pl-10 pr-2 py-2 border border-gray-300 rounded text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all hover:border-gray-400"
+                            className="w-full min-w-[110px] pl-8 pr-2 py-1 border border-gray-300 rounded text-xs text-right text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all hover:border-gray-400"
                             value={item.unitPrice}
                             onChange={(e) => updateItem(index, 'unitPrice', e.target.value)}
                             onKeyDown={(e) => handleKeyDown(e, index, 'unitPrice')}
@@ -728,7 +728,7 @@ export default function NewInvoicePage() {
                             type="number"
                             min="0"
                             step="0.01"
-                            className="w-full pl-10 pr-2 py-2 border border-gray-300 rounded text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all hover:border-gray-400"
+                            className="w-full min-w-[110px] pl-8 pr-2 py-1 border border-gray-300 rounded text-xs text-right text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all hover:border-gray-400"
                             value={item.discount || 0}
                             onChange={(e) => updateItem(index, 'discount', e.target.value)}
                             onKeyDown={(e) => handleKeyDown(e, index, 'discount')}
@@ -742,7 +742,7 @@ export default function NewInvoicePage() {
                             min="0"
                             max="100"
                             step="0.01"
-                            className="w-full px-2 pr-6 py-2 border border-gray-300 rounded text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all hover:border-gray-400"
+                            className="w-full min-w-[60px] px-2 pr-4 py-1 border border-gray-300 rounded text-xs text-right text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all hover:border-gray-400"
                             value={getPrimaryTaxRate(item)}
                             onChange={(e) => updateTaxRate(index, parseFloat(e.target.value) || 0)}
                             onKeyDown={(e) => handleKeyDown(e, index, 'tax')}

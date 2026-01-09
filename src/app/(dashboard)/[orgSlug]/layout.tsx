@@ -177,33 +177,13 @@ export default function DashboardLayout({
       featureKey: 'dashboard',
     },
     {
-      name: 'General Ledger',
-      icon: BookOpen,
-      featureKey: 'general-ledger',
-      children: [
-        { name: 'Chart of Accounts', href: `/${orgSlug}/general-ledger/chart-of-accounts` },
-        { name: 'Journal Entries', href: `/${orgSlug}/general-ledger/journal-entries/list` },
-        { name: 'New Entry', href: `/${orgSlug}/general-ledger/journal-entries` },
-      ],
-    },
-    {
-      name: 'Accounts Receivable',
+      name: 'Customers',
       icon: Users,
       featureKey: 'accounts-receivable',
       children: [
         { name: 'Customers', href: `/${orgSlug}/accounts-receivable/customers` },
         { name: 'Invoices', href: `/${orgSlug}/accounts-receivable/invoices` },
         { name: 'New Invoice', href: `/${orgSlug}/accounts-receivable/invoices/new` },
-      ],
-    },
-    {
-      name: 'Accounts Payable',
-      icon: FileText,
-      featureKey: 'accounts-payable',
-      children: [
-        { name: 'Vendors', href: `/${orgSlug}/accounts-payable/vendors` },
-        { name: 'Bills', href: `/${orgSlug}/accounts-payable/bills` },
-        { name: 'New Bill', href: `/${orgSlug}/accounts-payable/bills/new` },
       ],
     },
     {
@@ -227,7 +207,7 @@ export default function DashboardLayout({
       ],
     },
     {
-      name: 'Inventory',
+      name: 'Products & Services',
       icon: Package,
       featureKey: 'inventory',
       children: [
@@ -237,14 +217,13 @@ export default function DashboardLayout({
       ],
     },
     {
-      name: 'Services',
-      icon: Users,
-      featureKey: 'services',
+      name: 'Vendors',
+      icon: FileText,
+      featureKey: 'accounts-payable',
       children: [
-        { name: 'Service Catalog', href: `/${orgSlug}/services` },
-        { name: 'Bookings', href: `/${orgSlug}/services/bookings` },
-        { name: 'Deliveries', href: `/${orgSlug}/services/deliveries` },
-        { name: 'Time Tracking', href: `/${orgSlug}/services/time` },
+        { name: 'Vendors', href: `/${orgSlug}/accounts-payable/vendors` },
+        { name: 'Bills', href: `/${orgSlug}/accounts-payable/bills` },
+        { name: 'New Bill', href: `/${orgSlug}/accounts-payable/bills/new` },
       ],
     },
     {
@@ -258,7 +237,27 @@ export default function DashboardLayout({
         { name: 'Cash Flow', href: `/${orgSlug}/reports/cash-flow` },
         { name: 'Trial Balance', href: `/${orgSlug}/reports/trial-balance` },
         { name: 'Aged Receivables', href: `/${orgSlug}/reports/aged-receivables` },
-        { name: 'Aged Payables', href: `/${orgSlug}/reports/aged-payables` },
+      ],
+    },
+    {
+      name: 'General Ledger',
+      icon: BookOpen,
+      featureKey: 'general-ledger',
+      children: [
+        { name: 'Chart of Accounts', href: `/${orgSlug}/general-ledger/chart-of-accounts` },
+        { name: 'Journal Entries', href: `/${orgSlug}/general-ledger/journal-entries/list` },
+        { name: 'New Entry', href: `/${orgSlug}/general-ledger/journal-entries` },
+      ],
+    },
+    {
+      name: 'Services',
+      icon: Users,
+      featureKey: 'services',
+      children: [
+        { name: 'Service Catalog', href: `/${orgSlug}/services` },
+        { name: 'Bookings', href: `/${orgSlug}/services/bookings` },
+        { name: 'Deliveries', href: `/${orgSlug}/services/deliveries` },
+        { name: 'Time Tracking', href: `/${orgSlug}/services/time` },
       ],
     },
     {
@@ -675,9 +674,7 @@ export default function DashboardLayout({
       })()}
 
       {/* Main Content */}
-      <div className={`transition-all duration-200 bg-gray-50 min-h-screen ${
-        sidebarOpen ? 'lg:pl-56' : ''
-      }`}>
+      <div className="transition-all duration-200 bg-gray-50 min-h-screen lg:pl-56">
         {/* Header */}
         <header className="h-16 bg-slate-900 border-b border-slate-700 flex items-center justify-between px-6 shadow-sm relative">
           <button
@@ -762,7 +759,7 @@ export default function DashboardLayout({
         </header>
 
         {/* Main Content */}
-        <main className="lg:ml-56 min-h-[calc(100vh-4rem)] p-6 max-w-[1600px] mx-auto">
+        <main className="min-h-[calc(100vh-4rem)] p-6 max-w-[1600px] mx-auto">
           {children}
         </main>
 
